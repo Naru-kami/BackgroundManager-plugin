@@ -1431,8 +1431,8 @@ module.exports = meta => {
 .BackgroundLibrary-deleteButton {
   display: flex;
   position: absolute;
-  top: 0.15rem;
-  right: 0.15rem;
+  top: 3px;
+  right: 3px;
   z-index: 1;
   border-radius: 4px;
   border: 0;
