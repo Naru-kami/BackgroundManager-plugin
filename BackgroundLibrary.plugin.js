@@ -15,7 +15,7 @@ const DATA_BASE_NAME = 'BackgroundLibrary';
 
 module.exports = meta => {
   const defaultSettings = {
-    enableDrop: true,
+    enableDrop: false,
     transition: { enabled: true, duration: 250 },
     slideshow: { enabled: false, interval: 300000, shuffle: true },
     cssVariableDetection: { enabled: true, defaultVariable: '--background-image' },
