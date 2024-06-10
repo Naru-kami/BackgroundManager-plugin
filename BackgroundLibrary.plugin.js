@@ -3,6 +3,7 @@
  * @author Narukami
  * @description Enhances themes supporting background images with features (custom background, transitions, slideshow).
  * @version 1.0.0
+ * @source https://github.com/Naru-kami/BackgroundLibrary-plugin
  */
 
 'use strict';
