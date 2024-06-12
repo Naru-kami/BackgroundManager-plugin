@@ -679,34 +679,34 @@ module.exports = meta => {
       color: 'primary',
       hideOnClick: true,
       ...TooltipProps,
-      children: prop => jsx(constants.nativeUI.FocusRing, null,
-        jsx(constants.nativeUI.FocusRing, null,
-          jsx(component || 'button', {
-            onMouseEnter: prop.onMouseEnter,
-            onMouseLeave: prop.onMouseLeave,
-            onFocus: prop.onFocus,
-            onBlur: prop.onBlur,
-            ...restProps,
-            children: jsx('svg', {
-              x: '0', y: '0',
-              focusable: 'false',
-              'aria-hidden': 'true',
-              role: 'img',
-              xmlns: "http://www.w3.org/2000/svg",
-              width: "24",
-              height: "24",
-              fill: "none",
-              viewBox: "0 0 24 24",
-              children: jsx('path', {
-                fill: "currentColor",
-                d: SvgProps.path
-              }),
-              ...SvgProps,
-            })
-          })
+    }, prop => jsx(constants.nativeUI.FocusRing, null,
+      jsx(constants.nativeUI.FocusRing, null,
+        jsx(component || 'button', {
+          onMouseEnter: prop.onMouseEnter,
+          onMouseLeave: prop.onMouseLeave,
+          onFocus: prop.onFocus,
+          onBlur: prop.onBlur,
+          ...restProps,
+        }, jsx('svg', {
+          x: '0', y: '0',
+          focusable: 'false',
+          'aria-hidden': 'true',
+          role: 'img',
+          xmlns: "http://www.w3.org/2000/svg",
+          width: "24",
+          height: "24",
+          fill: "none",
+          viewBox: "0 0 24 24",
+          children: jsx('path', {
+            fill: "currentColor",
+            d: SvgProps.path
+          }),
+          ...SvgProps,
+        })
         )
       )
-    })
+    )
+    )
   }
 
   // Setting Components
@@ -720,7 +720,7 @@ module.exports = meta => {
           children: jsx(constants.nativeUI.FormSwitch, {
             hideBorder: true,
             value: setting.enableDrop,
-            note: 'When enabled, the popout will move infront of the native drop area.',
+            note: "When enabled, the popout will move infront of Discord's native drop area. It will also disabled the popout's focus trap to enable dragging.",
             onChange: newVal => setSetting(prev => ({ ...prev, enableDrop: newVal })),
           }, 'Enable Drop Area')
         }),
