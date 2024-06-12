@@ -26,12 +26,6 @@ module.exports = meta => {
   /** @type {{settings: typeof defaultSettings, [key: string]: unknown}} */
   const constants = {};
   /**
-   * @typedef {Object} ViewTransition
-   * @property {Promise<void>} finished - A promise that resolves when the view transition is finished.
-   * @property {Promise<void>} updateCallbackDone - A promise that resolves when the update callback is done.
-   * @property {Promise<void>} ready - A promise that resolves when the transition is ready.
-   */
-  /**
    * @typedef {Object} ImageItem
    * @property {Blob} image - The image blob.
    * @property {boolean} selected - The selected Image for the background.
@@ -373,9 +367,7 @@ module.exports = meta => {
         prev.forEach(e => {
           e.selected = false;
         });
-        viewTransition(() => {
-          DOM.removeStyle('BackgroundLibrary-background');
-        })
+        viewTransition.removeImage()
         return [...prev];
       });
 
@@ -445,7 +437,7 @@ module.exports = meta => {
       e.stopImmediatePropagation?.();
       URL.revokeObjectURL(item.src);
       onDelete(id);
-      item.selected && DOM.removeStyle('BackgroundLibrary-background');
+      item.selected && viewTransition.removeImage();
     }, [onDelete, item, id, item.selected, item.src]);
     const handleContextMenu = useCallback(e => {
       const MyContextMenu = ContextMenu.buildMenu([
@@ -732,7 +724,10 @@ module.exports = meta => {
               hideBorder: true,
               value: setting.transition.enabled,
               note: 'During transitions, Discord cannot respond to interactions.',
-              onChange: newVal => setSetting(prev => ({ ...prev, transition: { ...prev.transition, enabled: newVal } })),
+              onChange: newVal => {
+                setSetting(prev => ({ ...prev, transition: { ...prev.transition, enabled: newVal } }));
+                generateCSS();
+              },
             }, 'Enable Background Transitions'),
             jsx(FormTextInput, {
               disabled: !setting.transition.enabled,
@@ -872,7 +867,7 @@ module.exports = meta => {
       timeoutRef.current && clearTimeout(timeoutRef.current)
       timeoutRef.current = setTimeout(() => {
         onSliderCommit(newValue);
-      }, 333);
+      }, 250);
     }, [setSliderValue]);
 
     const onTextCommit = useCallback(() => {
@@ -973,10 +968,13 @@ module.exports = meta => {
               label: "Enable Transition",
               type: 'toggle',
               checked: settings.transition.enabled,
-              action: () => setSettings(prev => {
-                prev.transition.enabled = !prev.transition.enabled;
-                return prev;
-              })
+              action: () => {
+                setSettings(prev => {
+                  prev.transition.enabled = !prev.transition.enabled;
+                  return prev;
+                });
+                generateCSS();
+              }
             }, {
               label: "Transition Duration",
               type: "custom",
@@ -985,7 +983,7 @@ module.exports = meta => {
                 label: "Transition Duration",
                 value: settings.transition.duration,
                 type: 'number',
-                maxValue: 2000,
+                maxValue: 3000,
                 minValue: 0,
                 onChange: newVal => {
                   setSettings(prev => {
@@ -1237,6 +1235,7 @@ module.exports = meta => {
     });
     // Terminate any slideshows
     slideShowManager.stop();
+    viewTransition.destroy();
     // remove the icon
     document.getElementById(meta.slug)?.remove();
     // unpatch contextmenu
@@ -1256,8 +1255,19 @@ module.exports = meta => {
     DOM.removeStyle(meta.slug + '-style');
     DOM.addStyle(meta.slug + '-style',
       `
-::view-transition-group(root) {
-  animation-duration: ${constants.settings.transition.duration}ms;
+.BackgroundLibrary-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -9999;
+  opacity: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  mix-blend-mode: plus-lighter;
+  transition: opacity ${constants.settings.transition.enabled && constants.settings.transition.duration || 1}ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.BackgroundLibrary-bg.active{
+  opacity: 1;
 }
 @keyframes grow-y {
   from { transform: scaleY(0.9); opacity: 0; }
@@ -1475,18 +1485,41 @@ module.exports = meta => {
     return num.toString();
   }
 
-  /**
-   * A more compatible verstion for startViewTransitions
-   * @param {() => void | Promise<void>} domChange A callback to change the DOM. Animates between the old and the new view.
-   * @returns {ViewTransition | undefined}
-   */
-  function viewTransition(domChange) {
-    if (!document.startViewTransition || !constants.settings?.transition?.enabled) {
-      domChange();
-      return;
+  /**  Manager for switching images */
+  const viewTransition = (function () {
+    let activeIndex = 0;
+    let domBG = [];
+    function create() {
+      const bg1 = document.createElement('div');
+      bg1.classList.add('BackgroundLibrary-bg');
+      const bg2 = document.createElement('div');
+      bg2.classList.add('BackgroundLibrary-bg');
+      domBG.push(bg1, bg2);
+      document.body.prepend(...domBG)
     }
-    return document.startViewTransition(domChange);
-  }
+    function setImage(src) {
+      if (domBG.length !== 2) return;
+      activeIndex ^= 1;
+      domBG[activeIndex].style.backgroundImage = `url(${src})`;
+      domBG[activeIndex].classList.add('active');
+      domBG[activeIndex ^ 1].classList.remove('active');
+    }
+    function removeImage() {
+      domBG.forEach(e => e.classList.remove('active'));
+      DOM.removeStyle('BackgroundLibrary-background');
+    }
+    function destroy() {
+      domBG.forEach(e => e.remove());
+      domBG = [];
+      DOM.removeStyle('BackgroundLibrary-background');
+    }
+    return {
+      create,
+      setImage,
+      removeImage,
+      destroy
+    }
+  })();
 
   /**
    * Sets the background image, and, if enabled, detects the CSS variable for the background image
@@ -1497,7 +1530,7 @@ module.exports = meta => {
     if (constants.settings.cssVariableDetection.enabled) {
       const cssVariables = getCSSVariables((_, value) => value.startsWith('url'));
       if (!cssVariables) {
-        DOM.removeStyle('BackgroundLibrary-background');
+        viewTransition.removeImage()
         return;
       }
       if (Object.keys(cssVariables).length === 1) {
@@ -1521,10 +1554,9 @@ module.exports = meta => {
     } else {
       property = constants.settings.cssVariableDetection.defaultVariable;
     }
-    viewTransition(() => {
-      DOM.removeStyle('BackgroundLibrary-background');
-      property && DOM.addStyle('BackgroundLibrary-background', `:root, :root *{${property}: url('${imageItem.src}') !important;`);
-    });
+    DOM.removeStyle('BackgroundLibrary-background')
+    property && DOM.addStyle('BackgroundLibrary-background', `:root, :root * { ${property}: linear-gradient(#0000,#0000) !important; }`);
+    property && viewTransition.setImage(imageItem.src);
   }
 
   /**
@@ -1726,6 +1758,7 @@ module.exports = meta => {
         themeObserver = nodeObserver(document.querySelector('bd-head  bd-themes'), () => setImageFromIDB());
         // Start Slideshow if enabled
         constants.settings.slideshow.enabled && slideShowManager.restart();
+        viewTransition.create();
         addButton();
         generateCSS();
       } catch (e) {
