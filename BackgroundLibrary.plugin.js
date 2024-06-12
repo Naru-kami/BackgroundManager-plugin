@@ -277,22 +277,20 @@ module.exports = meta => {
       }
     }, []);
 
-    return (
-      // jsx(constants.nativeUI.FocusLock, {
-      // containerRef: mainComponent,
-      // children:
-      jsx('div', {
-        ref: mainComponent,
-        role: "dialog",
-        tabIndex: "-1",
-        "aria-modal": "true",
-        className: constants.messagesPopoutClasses.messagesPopoutWrap,
-      },
-        jsx(LibraryHead),
-        jsx(LibraryBody)
-      )
-      // })
+    const popout = jsx('div', {
+      ref: mainComponent,
+      role: "dialog",
+      tabIndex: "-1",
+      "aria-modal": "true",
+      className: constants.messagesPopoutClasses.messagesPopoutWrap,
+    }, jsx(LibraryHead),
+      jsx(LibraryBody)
     )
+
+    return !constants.settings.enableDrop ? jsx(constants.nativeUI.FocusLock, {
+      containerRef: mainComponent,
+      children: popout
+    }) : popout
   }
 
   function LibraryHead() {
@@ -514,26 +512,16 @@ module.exports = meta => {
           }), !error ? jsx('span', {
             className: ['BackgroundLibrary-imageData', constants.textStyles.defaultColor].join(' '),
             children: 'SIZE: ' + formatNumber(item.image.size) + 'B',
-          }) : null, jsx('div', {
-            role: 'button',
-            className: 'BackgroundLibrary-deleteButton',
-            title: 'Delete',
-            onClick: handleDelete,
-            children: jsx('svg', {
-              x: '0', y: '0',
-              focusable: "false",
-              role: 'img',
-              xmlns: "http://www.w3.org/2000/svg",
-              width: "16",
-              height: "16",
-              viewBox: "0 0 24 24",
-              'aria-hidden': "true",
-              fill: "none",
-              children: jsx('path', {
-                fill: "currentColor",
-                d: "M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z",
-              })
-            })
+          }) : null, jsx(IconButton, {
+            TooltipProps: { text: 'Delete Image' },
+            ButtonProps: {
+              onClick: handleDelete,
+              className: 'BackgroundLibrary-deleteButton',
+            },
+            SvgProps: {
+              width: '16', height: '16',
+              path: "M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+            }
           })
         ]
       })
@@ -1399,7 +1387,8 @@ module.exports = meta => {
   min-width: 100%;
   animation: fade-in 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-.BackgroundLibrary-imageWrapper:hover > .BackgroundLibrary-deleteButton {
+.BackgroundLibrary-imageWrapper:hover > .BackgroundLibrary-deleteButton,
+.BackgroundLibrary-deleteButton:focus-visible {
   opacity: 1;
 }
 .BackgroundLibrary-imageData {
