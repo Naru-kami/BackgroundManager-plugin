@@ -235,49 +235,29 @@ module.exports = meta => {
     })
   }
 
-  function IconComponent({ onClick, showTooltip, ...props }) {
-    const btnRef = useRef(null);
-    const ttRef = useRef(null);
-
-    useEffect(() => {
-      ttRef.current = UI.createTooltip(btnRef.current, 'Open Background Library', { side: 'bottom' });
-      ttRef.current.labelElement.style.cssText = 'font-size: 13px; padding: 5px 10px;';
-      ttRef.current.element.style.cssText = 'animation: grow-y .15s cubic-bezier(0.2, 0.6, 0.5, 1.1); transform-origin: 50% 0; z-index: 9999;';
-    }, []);
-    useEffect(() => {
-      ttRef.current.element.style.display = showTooltip ? 'block' : 'none';
-      ttRef.current.disabled = !showTooltip;
-    }, [showTooltip])
-
-    return jsx(constants.nativeUI.FocusRing, null,
-      jsx('div', {
+  function IconComponent({ onClick, ...props }) {
+    const handleKeyDown = useCallback(e => {
+      props.onKeyDown?.(e);
+      if (e.key === 'Enter' || e.key === ' ') onClick();
+    }, [onClick, props.onKeyDown])
+    return jsx(IconButton, {
+      TooltipProps: { text: 'Open Background Library', position: 'bottom' },
+      ButtonProps: {
         ...props,
+        onKeyDown: handleKeyDown,
+        component: 'div',
+        tabIndex: '0',
         onClick: onClick,
-        ref: btnRef,
         className: constants.toolbarClasses.iconWrapper + ' ' + constants.toolbarClasses.clickable,
-        role: 'button',
-        tabindex: '0',
-        children: jsx('svg', {
-          x: '0',
-          y: '0',
-          className: constants.toolbarClasses.icon,
-          'aria-hidden': 'true',
-          role: 'img',
-          xmlns: "http://www.w3.org/2000/svg",
-          width: "24",
-          height: "24",
-          fill: "none",
-          viewBox: "0 0 24 24",
-          children: jsx('path', {
-            fill: "currentColor",
-            d: "M20 4v12H8V4zm0-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2m-8.5 9.67 1.69 2.26 2.48-3.1L19 15H9zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6z"
-          })
-        })
-      })
-    )
+      },
+      SvgProps: {
+        path: "M20 4v12H8V4zm0-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2m-8.5 9.67 1.69 2.26 2.48-3.1L19 15H9zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6z",
+        className: constants.toolbarClasses.icon,
+      }
+    })
   }
 
-  function LibraryComponent({ ...props }) {
+  function LibraryComponent() {
     const mainComponent = useRef(null);
     useEffect(() => {
       function onResize() {
@@ -289,6 +269,7 @@ module.exports = meta => {
         layerContainer?.style.setProperty('z-index', '2002');
       }
       onResize();
+      mainComponent.current.focus();
       window.addEventListener('resize', onResize);
       return () => {
         layerContainer?.style.removeProperty('z-index');
@@ -296,17 +277,22 @@ module.exports = meta => {
       }
     }, []);
 
-    return jsx('div', {
-      ...props,
-      ref: mainComponent,
-      role: "dialog",
-      tabIndex: "-1",
-      "aria-modal": "true",
-      className: constants.messagesPopoutClasses.messagesPopoutWrap,
-    },
-      jsx(LibraryHead),
-      jsx(LibraryBody)
-    );
+    return (
+      // jsx(constants.nativeUI.FocusLock, {
+      // containerRef: mainComponent,
+      // children:
+      jsx('div', {
+        ref: mainComponent,
+        role: "dialog",
+        tabIndex: "-1",
+        "aria-modal": "true",
+        className: constants.messagesPopoutClasses.messagesPopoutWrap,
+      },
+        jsx(LibraryHead),
+        jsx(LibraryBody)
+      )
+      // })
+    )
   }
 
   function LibraryHead() {
@@ -337,11 +323,13 @@ module.exports = meta => {
         fetch(e.dataTransfer.getData('URL')).then(async response => {
           return response.ok ? response : Promise.reject(response.status);
         }).then(res =>
-          res.blob()
+          res.headers.get('Content-Type').startsWith('image/') ?
+            res.blob() :
+            Promise.reject('Dropped item is not an image.')
         ).then(blob =>
           handleFileTransfer(blob)
         ).catch(err => {
-          BdApi.showToast('Cannot get image data', { type: 'error' });
+          BdApi.showToast('Cannot get image data. ' + err, { type: 'error' });
           console.error('Status: ', err)
         }).finally(() => {
           cleanup();
@@ -501,6 +489,7 @@ module.exports = meta => {
       img.src = item.src || '';
       img.onload = () => setLoaded(true);
       img.onerror = () => {
+        setLoaded(true);
         if (first) {
           URL.revokeObjectURL(item.src);
           item.src = URL.createObjectURL(item.image);
@@ -516,16 +505,16 @@ module.exports = meta => {
         className: 'BackgroundLibrary-imageWrapper ' + constants.textStyles.defaultColor + (item.selected ? ' selected' : ''),
         onClick: handleImageClick,
         onContextMenu: handleContextMenu,
-        children: error ? jsx('div', null, 'Could not laod image. Try to reopen.') : [
-          !loaded ? jsx(CircularProgress) : jsx('img', {
+        children: [
+          !loaded ? jsx(CircularProgress) : error ? jsx('div', null, 'Could not load image. Try to reopen.') : jsx('img', {
             ref: element,
             tabIndex: '-1',
             src: item.src || '',
             className: 'BackgroundLibrary-image',
-          }), jsx('span', {
+          }), !error ? jsx('span', {
             className: ['BackgroundLibrary-imageData', constants.textStyles.defaultColor].join(' '),
             children: 'SIZE: ' + formatNumber(item.image.size) + 'B',
-          }), jsx('div', {
+          }) : null, jsx('div', {
             role: 'button',
             className: 'BackgroundLibrary-deleteButton',
             title: 'Delete',
@@ -554,8 +543,6 @@ module.exports = meta => {
   function InputComponent({ onDrop, onPaste, onRemove, onUpload }) {
     const [processing, setProcessing] = useState([]);
     const dropArea = useRef(null);
-    const remove = useRef(null);
-    const upload = useRef(null);
 
     const handleUpload = useCallback(() => {
       DiscordNative.fileManager.openFiles({
@@ -596,7 +583,7 @@ module.exports = meta => {
     }, []);
     const handleDragEnter = useCallback(() => {
       dropArea.current.classList.add('dragging');
-    }, [dropArea]);
+    }, [dropArea.current]);
     const handleDragOver = useCallback(e => {
       e.preventDefault?.();
       e.stopPropagation?.();
@@ -604,7 +591,7 @@ module.exports = meta => {
     }, []);
     const handleDragEnd = useCallback(() => {
       dropArea.current.classList.remove('dragging');
-    }, [dropArea]);
+    }, [dropArea.current]);
     const handleDrop = useCallback(e => {
       const timeStamp = Date.now();
       handleDragEnd();
@@ -620,14 +607,6 @@ module.exports = meta => {
         return () => setProcessing(prev => prev.filter(t => t !== timeStamp));
       });
     }, [onPaste, setProcessing]);
-
-    useEffect(() => {
-      const r = UI.createTooltip(remove.current, 'Remove Custom Background', { side: 'top' })
-      r.element.style.cssText = 'animation: grow-y .15s cubic-bezier(0.2, 0.6, 0.5, 1.1); transform-origin: 50% 100%; z-index: 9999;';
-      r.labelElement.style.paddingInline = '0.5rem';
-      const u = UI.createTooltip(upload.current, 'Open Images', { side: 'top' })
-      u.element.style.cssText = 'animation: grow-y .15s cubic-bezier(0.2, 0.6, 0.5, 1.1); transform-origin: 50% 100%; z-index: 9999;';
-    }, [])
 
     return jsx('div', {
       className: 'BackgroundLibrary-inputWrapper',
@@ -650,52 +629,27 @@ module.exports = meta => {
             }
           }) : null
         }),
-        jsx(constants.nativeUI.FocusRing, null,
-          jsx('button', {
-            ref: upload,
-            onClick: handleUpload,
+        jsx(IconButton, {
+          TooltipProps: { text: 'Open Images' },
+          ButtonProps: {
             className: 'BackgroundLibrary-UploadButton',
-            children: jsx('svg', {
-              x: '0', y: '0',
-              focusable: 'false',
-              'aria-hidden': 'true',
-              role: 'img',
-              xmlns: "http://www.w3.org/2000/svg",
-              width: "24",
-              height: "24",
-              fill: "none",
-              viewBox: "0 0 24 24",
-              children: jsx('path', {
-                fill: "currentColor",
-                d: 'M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2m0 12H4V6h5.17l2 2H20zM9.41 14.42 11 12.84V17h2v-4.16l1.59 1.59L16 13.01 12.01 9 8 13.01z'
-              })
-            })
-          })
-        )
-        ,
+            onClick: handleUpload,
+          },
+          SvgProps: {
+            path: 'M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2m0 12H4V6h5.17l2 2H20zM9.41 14.42 11 12.84V17h2v-4.16l1.59 1.59L16 13.01 12.01 9 8 13.01z'
+          }
+        }),
         jsx(InPopoutSettings),
-        jsx(constants.nativeUI.FocusRing, null,
-          jsx('button', {
-            ref: remove,
+        jsx(IconButton, {
+          TooltipProps: { text: 'Remove Custom Background' },
+          ButtonProps: {
             className: 'BackgroundLibrary-RemoveBgButton',
             onClick: onRemove,
-            children: jsx('svg', {
-              x: '0', y: '0',
-              focusable: 'false',
-              'aria-hidden': 'true',
-              role: 'img',
-              xmlns: "http://www.w3.org/2000/svg",
-              width: "24",
-              height: "24",
-              fill: "none",
-              viewBox: "0 0 24 24",
-              children: jsx('path', {
-                fill: "currentColor",
-                d: 'M22 8h-8v-2h8v2zM19 10H12V5H5c-1.1 0 -2 0.9 -2 2v12c 0 1.1 0.9 2 2 2h12c1.1 0 2 -0.9 2 -2zM5 19l3 -4l2 3l3 -4l4 5H5z'
-              })
-            })
-          })
-        )
+          },
+          SvgProps: {
+            path: 'M22 8h-8v-2h8v2zM19 10H12V5H5c-1.1 0 -2 0.9 -2 2v12c 0 1.1 0.9 2 2 2h12c1.1 0 2 -0.9 2 -2zM5 19l3 -4l2 3l3 -4l4 5H5z'
+          }
+        })
       ]
     })
   }
@@ -706,15 +660,16 @@ module.exports = meta => {
       setOpen(op => !op);
     }, [setOpen]);
 
-    return jsx(constants.popoutRoot.Popout, {
+    return jsx(constants.nativeUI.Popout, {
       shouldShow: open,
       animation: '1',
       position: 'bottom',
       align: 'right',
       autoInvert: false,
+      ignoreModalClicks: true,
       spacing: 16,
       onRequestClose: () => setOpen(false),
-      renderPopout: e => jsx(LibraryComponent, { ...e }),
+      renderPopout: () => jsx(LibraryComponent),
       children: (e, t) => {
         let { isShown: open } = t;
         return jsx(IconComponent, {
@@ -724,6 +679,45 @@ module.exports = meta => {
           showTooltip: !open
         })
       }
+    })
+  }
+
+  function IconButton({ TooltipProps, ButtonProps, SvgProps }) {
+    const { component, ...restProps } = ButtonProps;
+    return jsx(constants.nativeUI.Tooltip, {
+      text: '',
+      spacing: 8,
+      position: 'top',
+      color: 'primary',
+      hideOnClick: true,
+      ...TooltipProps,
+      children: prop => jsx(constants.nativeUI.FocusRing, null,
+        jsx(constants.nativeUI.FocusRing, null,
+          jsx(component || 'button', {
+            onMouseEnter: prop.onMouseEnter,
+            onMouseLeave: prop.onMouseLeave,
+            onFocus: prop.onFocus,
+            onBlur: prop.onBlur,
+            ...restProps,
+            children: jsx('svg', {
+              x: '0', y: '0',
+              focusable: 'false',
+              'aria-hidden': 'true',
+              role: 'img',
+              xmlns: "http://www.w3.org/2000/svg",
+              width: "24",
+              height: "24",
+              fill: "none",
+              viewBox: "0 0 24 24",
+              children: jsx('path', {
+                fill: "currentColor",
+                d: SvgProps.path
+              }),
+              ...SvgProps,
+            })
+          })
+        )
+      )
     })
   }
 
@@ -974,7 +968,6 @@ module.exports = meta => {
 
   function InPopoutSettings() {
     const [settings, setSettings] = useSettings();
-    const button = useRef();
     const handleClick = useCallback(e => {
       const MyContextMenu = ContextMenu.buildMenu([
         {
@@ -1111,33 +1104,14 @@ module.exports = meta => {
       ContextMenu.open(e, MyContextMenu);
     }, [open]);
 
-    useEffect(() => {
-      const s = UI.createTooltip(button.current, 'Open Settings', { side: 'top' })
-      s.element.style.cssText = 'animation: grow-y .15s cubic-bezier(0.2, 0.6, 0.5, 1.1); transform-origin: 50% 100%; z-index: 9999;';
-    }, []);
-
-    return jsx(constants.nativeUI.FocusRing, null,
-      jsx('button', {
-        ref: button,
-        onClick: handleClick,
+    return jsx(IconButton, {
+      TooltipProps: { text: 'Open Settings' },
+      ButtonProps: {
         className: 'BackgroundLibrary-SettingsButton',
-        children: jsx('svg', {
-          x: '0', y: '0',
-          focusable: 'false',
-          'aria-hidden': 'true',
-          role: 'img',
-          xmlns: "http://www.w3.org/2000/svg",
-          width: "24",
-          height: "24",
-          fill: "none",
-          viewBox: "0 0 24 24",
-          children: jsx('path', {
-            fill: "currentColor",
-            d: 'M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6'
-          })
-        })
-      })
-    )
+        onClick: handleClick,
+      },
+      SvgProps: { path: 'M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6' }
+    })
   }
 
   // Patching functions
@@ -1748,7 +1722,6 @@ module.exports = meta => {
           originalLink: Webpack.getModule(Filters.byKeys('originalLink')), // class for image embed
           scrollbar: Webpack.getModule(Filters.byKeys("thin")), // classes for scrollable content
           separator: Webpack.getModule(Filters.byKeys('scroller', 'separator')), // classes for separator
-          popoutRoot: Webpack.getModule(Filters.byKeys("Popout")),  // popout module
           nativeUI: Webpack.getModule(Filters.byKeys('FormSwitch', 'FormItem')), // native ui module
           // DiscordNative: Webpack.getByKeys('copyImage') // copyImage, saveImage
           settings: {
