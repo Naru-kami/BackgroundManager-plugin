@@ -19,6 +19,7 @@ module.exports = meta => {
     enableDrop: false,
     transition: { enabled: true, duration: 500 },
     slideshow: { enabled: false, interval: 300000, shuffle: true },
+    dimming: 0,
     addContextMenu: true
   }
 
@@ -849,6 +850,7 @@ module.exports = meta => {
       timeoutRef.current = setTimeout(() => {
         onSliderCommit(newValue);
       }, 250);
+      props.onSlide?.(newValue);
     }, [setSliderValue]);
 
     const onTextCommit = useCallback(() => {
@@ -885,8 +887,9 @@ module.exports = meta => {
     return jsx('div', {
       style: {
         display: 'grid',
-        gap: '0.5rem',
-        gridTemplateColumns: props.type === 'number' ? '2fr 1fr' : 'auto auto',
+        gap: '0.5rem 1rem',
+        maxWidth: '240px',
+        gridTemplateColumns: props.type === 'number' ? '3fr 2fr' : 'auto auto',
         cursor: props.disabled ? 'not-allowed' : null,
       },
       className: [constants.separator.item, constants.separator.labelContainer].join(' '),
@@ -1020,6 +1023,25 @@ module.exports = meta => {
               })
             }
           ]
+        }, {
+          type: 'separator',
+        }, {
+          label: "Image dimming",
+          type: "custom",
+          render: () => jsx(MenuInput, {
+            label: "Image Dimming",
+            value: settings.dimming,
+            type: 'number',
+            decimals: 2,
+            minValue: 0,
+            maxValue: 1,
+            onChange: newVal => setSettings(prev => {
+              prev.dimming = newVal;
+              return prev;
+            }),
+            onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--dimming', newVal),
+            suffix: ''
+          }),
         }, {
           type: 'separator',
         }, {
@@ -1439,21 +1461,20 @@ module.exports = meta => {
     function create() {
       bgContainer = document.createElement('div');
       bgContainer.classList.add('BackgroundLibrary-bgContainer');
+      bgContainer.style.setProperty('--dimming', constants.settings.dimming || 0);
       const bg1 = document.createElement('div');
       bg1.classList.add('BackgroundLibrary-bg');
       const bg2 = document.createElement('div');
       bg2.classList.add('BackgroundLibrary-bg');
       domBG.push(bg1, bg2);
       bgContainer.prepend(...domBG);
-      let t = nativeContainer.querySelector('.BackgroundLibrary-bgContainer');
-      if (t) t.remove(); // remove existing container. Not necessary, but for good measure.
       nativeContainer.prepend(bgContainer);
     }
     /** @param {string} src  */
     function setImage(src) {
       if (domBG.length !== 2) return;
       activeIndex ^= 1;
-      domBG[activeIndex].style.backgroundImage = 'url(' + src + ')';
+      domBG[activeIndex].style.backgroundImage = 'linear-gradient(rgba(0,0,0,var(--dimming,0)), rgba(0,0,0,var(--dimming,0))), url(' + src + ')';
       domBG[activeIndex].classList.add('active');
       domBG[activeIndex ^ 1].classList.remove('active');
     }
@@ -1465,7 +1486,7 @@ module.exports = meta => {
       bgContainer.remove();
       domBG = [];
     }
-    return { create, setImage, removeImage, destroy }
+    return { create, setImage, removeImage, destroy, bgContainer: () => bgContainer }
   })();
 
   /**
