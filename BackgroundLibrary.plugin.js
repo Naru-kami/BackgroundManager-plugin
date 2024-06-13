@@ -7,7 +7,7 @@
  */
 
 'use strict';
-const { React, Webpack, Webpack: { Filters }, Patcher, UI, DOM, ContextMenu, Data } = BdApi;
+const { React, Webpack, Webpack: { Filters }, Patcher, DOM, ContextMenu, Data } = BdApi;
 
 /** @type {typeof import("react")} */
 const { useState, useEffect, useRef, useCallback, useId, createElement: jsx, Fragment } = React;
@@ -723,7 +723,6 @@ module.exports = meta => {
             jsx(constants.nativeUI.FormSwitch, {
               hideBorder: true,
               value: setting.transition.enabled,
-              note: 'During transitions, Discord cannot respond to interactions.',
               onChange: newVal => {
                 setSetting(prev => ({ ...prev, transition: { ...prev.transition, enabled: newVal } }));
                 generateCSS();
