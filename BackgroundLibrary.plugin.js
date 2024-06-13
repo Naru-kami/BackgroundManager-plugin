@@ -17,9 +17,8 @@ const DATA_BASE_NAME = 'BackgroundLibrary';
 module.exports = meta => {
   const defaultSettings = {
     enableDrop: false,
-    transition: { enabled: true, duration: 250 },
+    transition: { enabled: true, duration: 500 },
     slideshow: { enabled: false, interval: 300000, shuffle: true },
-    cssVariableDetection: { enabled: true, defaultVariable: '--background-image' },
     addContextMenu: true
   }
 
@@ -429,8 +428,8 @@ module.exports = meta => {
       e.stopPropagation?.();
       e.stopImmediatePropagation?.();
       onSelect(id);
-      updateImage(item);
-    }, [onSelect, id, item, updateImage]);
+      viewTransition.setImage(item.src);
+    }, [onSelect, id, item]);
     const handleDelete = useCallback(e => {
       e.preventDefault?.();
       e.stopPropagation?.();
@@ -734,7 +733,8 @@ module.exports = meta => {
               type: 'number',
               min: 1,
               value: setting.transition.duration + '',
-              prefixElement: jsx(constants.nativeUI.FormText, { style: { flex: 1 }, className: constants.disabled.title }, 'Transition Duration (ms)'),
+              prefixElement: jsx(constants.nativeUI.FormText, { style: { flex: 1 }, className: constants.disabled.title }, 'Transition Duration'),
+              suffix: 'ms',
               onChange: newVal => {
                 setSetting(prev => ({ ...prev, transition: { ...prev.transition, duration: Number(newVal) } }));
                 generateCSS();
@@ -759,7 +759,8 @@ module.exports = meta => {
               type: 'number',
               min: 0.5,
               value: setting.slideshow.interval / 1000 / 60 + '',
-              prefixElement: jsx(constants.nativeUI.FormText, { style: { flex: 1 }, className: constants.disabled.title }, 'Slideshow Interval (minutes)'),
+              prefixElement: jsx(constants.nativeUI.FormText, { style: { flex: 1 }, className: constants.disabled.title }, 'Slideshow Interval'),
+              suffix: 'min',
               onChange: newVal => {
                 setSetting(prev => ({ ...prev, slideshow: { ...prev.slideshow, interval: Number(newVal) * 1000 * 60 } }));
                 slideShowManager.restart();
@@ -774,30 +775,6 @@ module.exports = meta => {
           ],
         }),
         jsx('div', { role: 'separator', className: constants.separator.separator }),
-        jsx(constants.nativeUI.FormSection, {
-          title: 'CSS Variables',
-          children: [
-            jsx(constants.nativeUI.FormSwitch, {
-              hideBorder: true,
-              value: setting.cssVariableDetection.enabled,
-              onChange: newVal => {
-                setSetting(prev => ({ ...prev, cssVariableDetection: { ...prev.cssVariableDetection, enabled: newVal } }));
-                setImageFromIDB();
-              },
-            }, 'Autodetect CSS Variables from themes'),
-            jsx(FormTextInput, {
-              disabled: setting.cssVariableDetection.enabled,
-              type: 'text',
-              value: setting.cssVariableDetection.defaultVariable,
-              validation: newVal => newVal.length > 2 && newVal.startsWith('--'),
-              prefixElement: jsx(constants.nativeUI.FormText, { style: { flex: 1 }, className: constants.disabled.title }, 'Default CSS Variable'),
-              onChange: newVal => {
-                setSetting(prev => ({ ...prev, cssVariableDetection: { ...prev.cssVariableDetection, defaultVariable: newVal } }));
-                setImageFromIDB();
-              },
-            }),
-          ],
-        }), jsx('div', { role: 'separator', className: constants.separator.separator }),
         jsx(constants.nativeUI.FormSection, {
           title: 'Context Menu',
           children: jsx(constants.nativeUI.FormSwitch, {
@@ -838,14 +815,18 @@ module.exports = meta => {
       }
     }, [handleBlur]);
 
-    return jsx(constants.nativeUI.TextInput, {
+    return jsx('div', {
+      style: { display: 'grid', gridTemplateColumns: '1fr auto', width: '100%', alignItems: 'center' }
+    }, jsx(constants.nativeUI.TextInput, {
       ...props,
       value: val,
       className: 'BackgroundLibrary-SettingsTextInput ' + (props.disabled ? constants.disabled.disabled : ''),
       onChange: handleChange,
       onBlur: handleBlur,
       onKeyDown: handleKeyDown
-    })
+    }),
+      props.type === "number" && props.suffix ? jsx('span', { style: { marginLeft: '0.25rem', marginBottom: '20px' }, className: constants.textStyles.defaultColor }, props.suffix) : null
+    )
   }
 
   function MenuInput({ value, onChange, ...props }) {
@@ -1040,41 +1021,6 @@ module.exports = meta => {
             }
           ]
         }, {
-          type: 'group',
-          items: [
-            {
-              label: "Auto detect CSS Variable",
-              type: 'toggle',
-              checked: settings.cssVariableDetection.enabled,
-              action: () => {
-                setSettings(prev => {
-                  prev.cssVariableDetection.enabled = !prev.cssVariableDetection.enabled;
-                  return prev;
-                })
-                setImageFromIDB();
-              }
-            }, {
-              label: "Default CSS Variable",
-              type: "custom",
-              render: () => jsx(MenuInput, {
-                disabled: settings.cssVariableDetection.enabled,
-                label: "Default CSS Variable",
-                value: settings.cssVariableDetection.defaultVariable,
-                validation: value => value.startsWith('--') && value.length > 2,
-                type: 'text',
-                onChange: newVal => {
-                  let oldValue;
-                  setSettings(prev => {
-                    oldValue = prev.cssVariableDetection.defaultVariable;
-                    prev.cssVariableDetection.defaultVariable = newVal;
-                    return prev;
-                  });
-                  if (oldValue !== newVal) setImageFromIDB();
-                }
-              })
-            }
-          ]
-        }, {
           type: 'separator',
         }, {
           label: "Add Context Menus",
@@ -1174,7 +1120,7 @@ module.exports = meta => {
         })).then(response =>
           response.ok ? response : Promise.reject(response.status)
         ).then(response =>
-          response.blob()
+          response.headers.get('Content-Type').startsWith('image/') ? response.blob() : Promise.reject('Item is not an image.')
         ).then(blob => {
           setImageFromIDB(storedImages => {
             storedImages.push({ image: blob, selected: false, src: null, id: storedImages.length + 1 });
@@ -1233,7 +1179,7 @@ module.exports = meta => {
     }).finally(() => {
       db?.close();
     });
-    // Terminate any slideshows
+    // destroy any slideshows and image containers
     slideShowManager.stop();
     viewTransition.destroy();
     // remove the icon
@@ -1242,9 +1188,8 @@ module.exports = meta => {
     contextMenuPatcher.unpatch();
     // unpatch the toolbar
     Patcher.unpatchAll(meta.slug);
-    // remove styles and background image
+    // remove styles
     DOM.removeStyle(meta.slug + '-style');
-    DOM.removeStyle('BackgroundLibrary-background');
     // destroy mutation observer
     themeObserver?.disconnect();
   }
@@ -1489,12 +1434,10 @@ module.exports = meta => {
     return num.toString();
   }
 
-  /**  Manager for switching images */
+  /**  Controller for switching images */
   const viewTransition = (function () {
     const nativeContainer = document.querySelector('#app-mount .bg__12180');
-    let bgContainer,
-      activeIndex = 0,
-      domBG = [];
+    let bgContainer, activeIndex = 0, domBG = [];
     function create() {
       bgContainer = document.createElement('div');
       bgContainer.classList.add('BackgroundLibrary-bgContainer');
@@ -1504,71 +1447,28 @@ module.exports = meta => {
       bg2.classList.add('BackgroundLibrary-bg');
       domBG.push(bg1, bg2);
       bgContainer.prepend(...domBG);
+      let t = nativeContainer.querySelector('.BackgroundLibrary-bgContainer');
+      if (t) t.remove(); // remove existing container. Not necessary, but for good measure.
       nativeContainer.prepend(bgContainer);
     }
+    /** @param {string} src  */
     function setImage(src) {
       if (domBG.length !== 2) return;
-      domBG.forEach(e => e.style.display = '');
       activeIndex ^= 1;
       domBG[activeIndex].style.backgroundImage = 'url(' + src + ')';
       domBG[activeIndex].classList.add('active');
       domBG[activeIndex ^ 1].classList.remove('active');
     }
     function removeImage() {
-      DOM.removeStyle('BackgroundLibrary-background');
-      domBG.forEach(e => { e.classList.remove('active'); e.style.cssText = 'display: none;' });
+      domBG.forEach(e => e.classList.remove('active'));
     }
     function destroy() {
-      DOM.removeStyle('BackgroundLibrary-background');
       domBG.forEach(e => e.remove());
       bgContainer.remove();
       domBG = [];
     }
-    return {
-      create,
-      setImage,
-      removeImage,
-      destroy
-    }
+    return { create, setImage, removeImage, destroy }
   })();
-
-  /**
-   * Sets the background image, and, if enabled, detects the CSS variable for the background image
-   * @param {ImageItem} imageItem 
-   */
-  function updateImage(imageItem) {
-    let property;
-    if (constants.settings.cssVariableDetection.enabled) {
-      const cssVariables = getCSSVariables((_, value) => value.startsWith('url'));
-      if (!cssVariables) {
-        viewTransition.removeImage()
-        return;
-      }
-      if (Object.keys(cssVariables).length === 1) {
-        property = Object.keys(cssVariables)[0];
-      } else {
-        for (const key of Object.keys(cssVariables)) { // prioritize background, bg, backdrop, image, img
-          if (key.toLowerCase().includes('background') || key.toLowerCase().includes('bg') || key.toLowerCase().includes('wallpaper') || key.toLowerCase().includes('backdrop')) {
-            property = key;
-            break;
-          }
-        }
-        if (!property) {
-          for (const key of Object.keys(cssVariables)) { // if no variable is found, look for images.
-            if (key.toLowerCase().includes('image') || key.toLowerCase().includes('img')) {
-              property = key;
-              break;
-            }
-          }
-        }
-      }
-    } else {
-      property = constants.settings.cssVariableDetection.defaultVariable;
-    }
-    DOM.removeStyle('BackgroundLibrary-background')
-    property && DOM.addStyle('BackgroundLibrary-background', `:root, :root * { ${property}: linear-gradient(#0000,#0000) !important; }`);
-    property && viewTransition.setImage(imageItem.src);
-  }
 
   /**
    * Accessing the database and either sets the selected image as a background, or calls the callback with all items.
@@ -1586,10 +1486,9 @@ module.exports = meta => {
           callback(storedItems);
         } else {
           storedItems.forEach(e => {
+            e.src && URL.createObjectURL(e.src);
             e.src = e.selected ? URL.createObjectURL(e.image) : null;
-            if (e.selected) {
-              updateImage(e);
-            }
+            if (e.selected) viewTransition.setImage(e.src)
           });
         }
         saveItems(db, 'images', storedItems, storedItems);
@@ -1622,32 +1521,6 @@ module.exports = meta => {
   }
 
   /**
-   * @param {(customProperty: string, value: string) => void} filter 
-   * @returns { {[key:string]: string} }
-   */
-  function getCSSVariables(filter) {
-    const styleElement = document.querySelector('bd-head  bd-themes style:last-child');
-    if (!styleElement) return;
-    const sheet = [...document.styleSheets].find(sheet => sheet.ownerNode === styleElement);
-    if (!sheet) return;
-    const cssVariables = {};
-
-    // Iterate through the CSS rules in the stylesheet
-    for (const rule of sheet.cssRules) {
-      if (!rule || rule instanceof CSSImportRule) continue;
-      for (const customProperty of rule.style) {
-        if (customProperty.startsWith('--')) {
-          const value = rule.style.getPropertyValue(customProperty).trim();
-          if (filter(customProperty, value))
-            cssVariables[customProperty] = value;
-        }
-      }
-
-    }
-    return cssVariables;
-  }
-
-  /**
    * Returns the first element that is a ancestor of node that matches selectors.
    * @param {HTMLElement} node The HTMLelement to start the search from.
    * @template {keyof HTMLElementTagNameMap} K
@@ -1656,9 +1529,7 @@ module.exports = meta => {
    */
   function reverseQuerySelector(node, query) {
     while (node !== null && node !== document) {
-      if (node.matches(query)) {
-        return node;
-      }
+      if (node.matches(query)) return node;
       node = node.parentElement;
     }
     return null;
@@ -1702,7 +1573,7 @@ module.exports = meta => {
               if (e.id - 1 === x) {
                 e.selected = true;
                 e.src = URL.createObjectURL(e.image);
-                updateImage(e);
+                viewTransition.setImage(e.src);
                 console.log('Background Image updated on:', new Date())
               }
             })
@@ -1714,7 +1585,7 @@ module.exports = meta => {
               if (i === ((currentIndex + 1) || Math.floor(Math.random() * storedImages.length)) % storedImages.length) {
                 e.selected = true;
                 e.src = URL.createObjectURL(e.image);
-                updateImage(e);
+                viewTransition.setImage(e.src);
                 console.log('Background Image updated on:', new Date())
               }
             })
@@ -1733,11 +1604,7 @@ module.exports = meta => {
       start();
     }
 
-    return {
-      start,
-      restart,
-      stop
-    }
+    return { start, restart, stop }
   }();
 
   return {
@@ -1761,13 +1628,12 @@ module.exports = meta => {
             ...configs,
             transition: { ...defaultSettings.transition, ...configs?.transition },
             slideshow: { ...defaultSettings.slideshow, ...configs?.slideshow },
-            cssVariableDetection: { ...defaultSettings.cssVariableDetection, ...configs?.cssVariableDetection },
           }
         });
         // On startup, check if there are any selected images inside the database, and if so, set it as background.
         setImageFromIDB();
         themeObserver = nodeObserver(document.querySelector('bd-head  bd-themes'), () => setImageFromIDB());
-        // Start Slideshow if enabled
+        // Start Slideshow if enabled, and create image containers
         constants.settings.slideshow.enabled && slideShowManager.restart();
         viewTransition.create();
         addButton();
