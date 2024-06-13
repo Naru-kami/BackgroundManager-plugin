@@ -1190,8 +1190,6 @@ module.exports = meta => {
     Patcher.unpatchAll(meta.slug);
     // remove styles
     DOM.removeStyle(meta.slug + '-style');
-    // destroy mutation observer
-    themeObserver?.disconnect();
   }
 
   // utility
@@ -1486,7 +1484,7 @@ module.exports = meta => {
           callback(storedItems);
         } else {
           storedItems.forEach(e => {
-            e.src && URL.createObjectURL(e.src);
+            e.src && URL.revokeObjectURL(e.src);
             e.src = e.selected ? URL.createObjectURL(e.image) : null;
             if (e.selected) viewTransition.setImage(e.src)
           });
@@ -1536,20 +1534,6 @@ module.exports = meta => {
   }
 
   // Inits and Event Listeners
-  /**
-   * Observe for changes to an HTMLelement
-   * @param {HTMLElement} obj The object to observe
-   * @param {() => void} callback Callback fired when the node changes
-   * @returns {MutationObserver | undefined}
-   */
-  function nodeObserver(obj, callback) {
-    if (!obj) return;
-    var mutationObserver = new MutationObserver(callback)
-    mutationObserver.observe(obj, { childList: true, subtree: true })
-    return mutationObserver
-  }
-  let themeObserver;
-
   /**
    * Manager to start and stop the slideshow. Internally handles the interval
    */
@@ -1632,7 +1616,6 @@ module.exports = meta => {
         });
         // On startup, check if there are any selected images inside the database, and if so, set it as background.
         setImageFromIDB();
-        themeObserver = nodeObserver(document.querySelector('bd-head  bd-themes'), () => setImageFromIDB());
         // Start Slideshow if enabled, and create image containers
         constants.settings.slideshow.enabled && slideShowManager.restart();
         viewTransition.create();
