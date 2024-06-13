@@ -1258,7 +1258,6 @@ module.exports = meta => {
 .BackgroundLibrary-bg {
   position: absolute;
   inset: 0;
-  z-index: -9999;
   opacity: 0;
   background-size: cover;
   background-position: center;
@@ -1487,6 +1486,7 @@ module.exports = meta => {
 
   /**  Manager for switching images */
   const viewTransition = (function () {
+    const bgContainer = document.querySelector('#app-mount .bg__12180');
     let activeIndex = 0;
     let domBG = [];
     function create() {
@@ -1495,23 +1495,24 @@ module.exports = meta => {
       const bg2 = document.createElement('div');
       bg2.classList.add('BackgroundLibrary-bg');
       domBG.push(bg1, bg2);
-      document.body.prepend(...domBG)
+      bgContainer.prepend(...domBG)
     }
     function setImage(src) {
       if (domBG.length !== 2) return;
+      domBG.forEach(e => e.style.display = '');
       activeIndex ^= 1;
-      domBG[activeIndex].style.backgroundImage = `url(${src})`;
+      domBG[activeIndex].style.backgroundImage = 'url(' + src + ')';
       domBG[activeIndex].classList.add('active');
       domBG[activeIndex ^ 1].classList.remove('active');
     }
     function removeImage() {
-      domBG.forEach(e => e.classList.remove('active'));
       DOM.removeStyle('BackgroundLibrary-background');
+      domBG.forEach(e => { e.classList.remove('active'); e.style.cssText = 'display: none;' });
     }
     function destroy() {
+      DOM.removeStyle('BackgroundLibrary-background');
       domBG.forEach(e => e.remove());
       domBG = [];
-      DOM.removeStyle('BackgroundLibrary-background');
     }
     return {
       create,
