@@ -1255,6 +1255,11 @@ module.exports = meta => {
     DOM.removeStyle(meta.slug + '-style');
     DOM.addStyle(meta.slug + '-style',
       `
+.BackgroundLibrary-bgContainer {
+  position: absolute;
+  inset: 0;
+  isolation: isolate;
+}
 .BackgroundLibrary-bg {
   position: absolute;
   inset: 0;
@@ -1486,16 +1491,20 @@ module.exports = meta => {
 
   /**  Manager for switching images */
   const viewTransition = (function () {
-    const bgContainer = document.querySelector('#app-mount .bg__12180');
-    let activeIndex = 0;
-    let domBG = [];
+    const nativeContainer = document.querySelector('#app-mount .bg__12180');
+    let bgContainer,
+      activeIndex = 0,
+      domBG = [];
     function create() {
+      bgContainer = document.createElement('div');
+      bgContainer.classList.add('BackgroundLibrary-bgContainer');
       const bg1 = document.createElement('div');
       bg1.classList.add('BackgroundLibrary-bg');
       const bg2 = document.createElement('div');
       bg2.classList.add('BackgroundLibrary-bg');
       domBG.push(bg1, bg2);
-      bgContainer.prepend(...domBG)
+      bgContainer.prepend(...domBG);
+      nativeContainer.prepend(bgContainer);
     }
     function setImage(src) {
       if (domBG.length !== 2) return;
@@ -1512,6 +1521,7 @@ module.exports = meta => {
     function destroy() {
       DOM.removeStyle('BackgroundLibrary-background');
       domBG.forEach(e => e.remove());
+      bgContainer.remove();
       domBG = [];
     }
     return {
