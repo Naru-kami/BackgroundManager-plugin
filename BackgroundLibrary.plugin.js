@@ -235,7 +235,7 @@ module.exports = meta => {
       if (e.key === 'Enter' || e.key === ' ') onClick();
     }, [onClick, props.onKeyDown])
     return jsx(IconButton, {
-      TooltipProps: { text: 'Open Background Library', position: 'bottom' },
+      TooltipProps: { text: 'Background Library', position: 'bottom' },
       ButtonProps: {
         ...props,
         onKeyDown: handleKeyDown,
@@ -697,8 +697,7 @@ module.exports = meta => {
         })
         )
       )
-    )
-    )
+    ))
   }
 
   // Setting Components
@@ -1232,7 +1231,7 @@ module.exports = meta => {
   background-position: center;
   background-repeat: no-repeat;
   mix-blend-mode: plus-lighter;
-  transition: opacity ${constants.settings.transition.enabled && constants.settings.transition.duration || 1}ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity ${constants.settings.transition.enabled ? constants.settings.transition.duration : 0}ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .BackgroundLibrary-bg.active{
   opacity: 1;
@@ -1455,7 +1454,7 @@ module.exports = meta => {
 
   /**  Controller for switching images */
   const viewTransition = (function () {
-    const nativeContainer = document.querySelector('#app-mount .bg__12180');
+    const nativeContainer = document.querySelector('.' + Webpack.getModule(Filters.byKeys('baseLayer', 'bg')).bg);
     let bgContainer, activeIndex = 0, domBG = [];
     function create() {
       bgContainer = document.createElement('div');
