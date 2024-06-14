@@ -235,14 +235,14 @@ module.exports = meta => {
       if (e.key === 'Enter' || e.key === ' ') onClick();
     }, [onClick, props.onKeyDown])
     return jsx(IconButton, {
-      TooltipProps: { text: 'Background Library', position: 'bottom' },
+      TooltipProps: { text: 'Background Library', position: 'bottom', shouldShow: props.showTooltip },
       ButtonProps: {
         ...props,
         onKeyDown: handleKeyDown,
         component: 'div',
         tabIndex: '0',
         onClick: onClick,
-        className: constants.toolbarClasses.iconWrapper + ' ' + constants.toolbarClasses.clickable,
+        className: [constants.toolbarClasses.iconWrapper, !props.showTooltip ? constants.toolbarClasses.selected : undefined, constants.toolbarClasses.clickable].join(' '),
       },
       SvgProps: {
         path: "M20 4v12H8V4zm0-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2m-8.5 9.67 1.69 2.26 2.48-3.1L19 15H9zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6z",
