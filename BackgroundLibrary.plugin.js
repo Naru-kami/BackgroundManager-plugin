@@ -1236,10 +1236,6 @@ module.exports = meta => {
 .BackgroundLibrary-bg.active{
   opacity: 1;
 }
-@keyframes grow-y {
-  from { transform: scaleY(0.9); opacity: 0; }
-  to { transform: none; opacity: 1 }
-}
 @keyframes loading-animation {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg);  }
