@@ -1,9 +1,9 @@
 /**
- * @name BackgroundLibrary
+ * @name BackgroundManager
  * @author Narukami
- * @description Enhances themes supporting background images with features (custom background, transitions, slideshow).
+ * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
  * @version 1.0.0
- * @source https://github.com/Naru-kami/BackgroundLibrary-plugin
+ * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
 'use strict';
@@ -12,12 +12,12 @@ const { React, Webpack, Webpack: { Filters }, Patcher, DOM, ContextMenu, Data } 
 /** @type {typeof import("react")} */
 const { useState, useEffect, useRef, useCallback, useId, createElement: jsx, Fragment } = React;
 
-const DATA_BASE_NAME = 'BackgroundLibrary';
+const DATA_BASE_NAME = 'BackgroundManager';
 
 module.exports = meta => {
   const defaultSettings = {
     enableDrop: false,
-    transition: { enabled: true, duration: 500 },
+    transition: { enabled: true, duration: 1000 },
     slideshow: { enabled: false, interval: 300000, shuffle: true },
     dimming: 0,
     addContextMenu: true
@@ -35,7 +35,7 @@ module.exports = meta => {
 
   // Hooks
   /**
-   * Utility function to call a memoized callback with the latest state on unmount.
+   * Utility function to call a callback with the latest state on unmount.
    * @template T
    * @param {(state: T) => void} callback
    * @param {T} state
@@ -48,7 +48,7 @@ module.exports = meta => {
       stateRef.current = state;
     }, [state]);
 
-    // Cleanup effect to call the memoized callback with the latest state on unmount
+    // Cleanup effect to call the callback with the latest state on unmount
     useEffect(() => {
       return () => {
         callback(stateRef.current);
@@ -213,11 +213,11 @@ module.exports = meta => {
   // Components
   function CircularProgress({ loaderProps, ...props }) {
     return jsx('div', {
-      className: 'BackgroundLibrary-skeleton',
+      className: 'BackgroundManager-skeleton',
       ...props,
       children: jsx('span', {
         ...loaderProps,
-        className: 'BackgroundLibrary-loader',
+        className: 'BackgroundManager-loader',
         children: jsx('svg', {
           viewBox: "22 22 44 44",
           style: { display: 'block' },
@@ -235,7 +235,7 @@ module.exports = meta => {
       if (e.key === 'Enter' || e.key === ' ') onClick();
     }, [onClick, props.onKeyDown])
     return jsx(IconButton, {
-      TooltipProps: { text: 'Background Library', position: 'bottom', shouldShow: props.showTooltip },
+      TooltipProps: { text: 'Background Manager', position: 'bottom', shouldShow: props.showTooltip },
       ButtonProps: {
         ...props,
         onKeyDown: handleKeyDown,
@@ -251,7 +251,7 @@ module.exports = meta => {
     })
   }
 
-  function LibraryComponent() {
+  function ManagerComponent() {
     const mainComponent = useRef(null);
     useEffect(() => {
       function onResize() {
@@ -277,8 +277,8 @@ module.exports = meta => {
       tabIndex: "-1",
       "aria-modal": "true",
       className: constants.messagesPopoutClasses.messagesPopoutWrap,
-    }, jsx(LibraryHead),
-      jsx(LibraryBody)
+    }, jsx(ManagerHead),
+      jsx(ManagerBody)
     )
 
     return !constants.settings.enableDrop ? jsx(constants.nativeUI.FocusLock, {
@@ -287,15 +287,15 @@ module.exports = meta => {
     }) : popout
   }
 
-  function LibraryHead() {
+  function ManagerHead() {
     return jsx('div', {
       className: constants.messagesPopoutClasses.header
     }, jsx('h1', {
       className: [constants.textStyles.defaultColor, constants.textStyles[['heading-md/medium']]].join(' '),
-    }, "Background Library"));
+    }, "Background Manager"));
   }
 
-  function LibraryBody() {
+  function ManagerBody() {
     const [images, setImages] = useIDB();
     const handleFileTransfer = useCallback(blob => {
       setImages(prev => [...prev, { image: blob, selected: false, src: URL.createObjectURL(blob), id: prev.length + 1 }]);
@@ -389,7 +389,7 @@ module.exports = meta => {
       style: { display: "grid", 'grid-template-rows': 'auto auto 1fr' },
     },
       jsx(ErrorBoundary, {
-        fallback: 'Internal Component Error. Background Library crashed.'
+        fallback: 'Internal Component Error. Background Manager crashed.'
       },
         jsx(InputComponent, {
           onDrop: handleDrop,
@@ -401,7 +401,7 @@ module.exports = meta => {
           className: constants.separator.separator,
           style: { marginRight: '0.75rem' }
         }), jsx('div', {
-          className: ['BackgroundLibrary-gridWrapper', constants.scrollbar.thin].join(' '),
+          className: ['BackgroundManager-gridWrapper', constants.scrollbar.thin].join(' '),
         }, images.reduce((p, c) => p + c.image.size, 0) ? jsx('div', {
           style: { width: '100%' },
           className: constants.textStyles['text-sm/semibold'],
@@ -492,7 +492,7 @@ module.exports = meta => {
 
     return jsx(constants.nativeUI.FocusRing, null,
       jsx('button', {
-        className: 'BackgroundLibrary-imageWrapper ' + constants.textStyles.defaultColor + (item.selected ? ' selected' : ''),
+        className: 'BackgroundManager-imageWrapper ' + constants.textStyles.defaultColor + (item.selected ? ' selected' : ''),
         onClick: handleImageClick,
         onContextMenu: handleContextMenu,
         children: [
@@ -500,15 +500,15 @@ module.exports = meta => {
             ref: element,
             tabIndex: '-1',
             src: item.src || '',
-            className: 'BackgroundLibrary-image',
+            className: 'BackgroundManager-image',
           }), !error ? jsx('span', {
-            className: ['BackgroundLibrary-imageData', constants.textStyles.defaultColor].join(' '),
+            className: ['BackgroundManager-imageData', constants.textStyles.defaultColor].join(' '),
             children: 'SIZE: ' + formatNumber(item.image.size) + 'B',
           }) : null, jsx(IconButton, {
             TooltipProps: { text: 'Delete Image' },
             ButtonProps: {
               onClick: handleDelete,
-              className: 'BackgroundLibrary-deleteButton',
+              className: 'BackgroundManager-deleteButton',
             },
             SvgProps: {
               width: '16', height: '16',
@@ -589,10 +589,10 @@ module.exports = meta => {
     }, [onPaste, setProcessing]);
 
     return jsx('div', {
-      className: 'BackgroundLibrary-inputWrapper',
+      className: 'BackgroundManager-inputWrapper',
       children: [
         jsx('div', {
-          className: 'BackgroundLibrary-DropAndPasteArea',
+          className: 'BackgroundManager-DropAndPasteArea',
           contentEditable: 'true',
           ref: dropArea,
           onInput: handleInput,
@@ -612,7 +612,7 @@ module.exports = meta => {
         jsx(IconButton, {
           TooltipProps: { text: 'Open Images' },
           ButtonProps: {
-            className: 'BackgroundLibrary-UploadButton',
+            className: 'BackgroundManager-UploadButton',
             onClick: handleUpload,
           },
           SvgProps: {
@@ -623,7 +623,7 @@ module.exports = meta => {
         jsx(IconButton, {
           TooltipProps: { text: 'Remove Custom Background' },
           ButtonProps: {
-            className: 'BackgroundLibrary-RemoveBgButton',
+            className: 'BackgroundManager-RemoveBgButton',
             onClick: onRemove,
           },
           SvgProps: {
@@ -649,7 +649,7 @@ module.exports = meta => {
       ignoreModalClicks: true,
       spacing: 16,
       onRequestClose: () => setOpen(false),
-      renderPopout: () => jsx(LibraryComponent),
+      renderPopout: () => jsx(ManagerComponent),
       children: (e, t) => {
         let { isShown: open } = t;
         return jsx(IconComponent, {
@@ -819,7 +819,7 @@ module.exports = meta => {
     }, jsx(constants.nativeUI.TextInput, {
       ...props,
       value: val,
-      className: 'BackgroundLibrary-SettingsTextInput ' + (props.disabled ? constants.disabled.disabled : ''),
+      className: 'BackgroundManager-SettingsTextInput ' + (props.disabled ? constants.disabled.disabled : ''),
       onChange: handleChange,
       onBlur: handleBlur,
       onKeyDown: handleKeyDown
@@ -1059,7 +1059,7 @@ module.exports = meta => {
     return jsx(IconButton, {
       TooltipProps: { text: 'Open Settings' },
       ButtonProps: {
-        className: 'BackgroundLibrary-SettingsButton',
+        className: 'BackgroundManager-SettingsButton',
         onClick: handleClick,
       },
       SvgProps: { path: 'M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6' }
@@ -1077,7 +1077,7 @@ module.exports = meta => {
     })
   }
 
-  /** Manager to patch and unpatch the context menu. Adds an option to add images to the library */
+  /** Manager to patch and unpatch the context menu. Adds an option to add images to the Manager */
   const contextMenuPatcher = function () {
     let cleanupImage, cleanupMessage;
     function patch() {
@@ -1119,8 +1119,8 @@ module.exports = meta => {
 
   function BuildMenuItem(src) {
     return jsx(ContextMenu.Group, null, jsx(ContextMenu.Item, {
-      id: 'add-library',
-      label: 'Add to Background Library',
+      id: 'add-Manager',
+      label: 'Add to Background Manager',
       action: async () => {
         let mediaURL = function (src) {
           let safeURL = function (url) { try { return new URL(url) } catch (e) { return null } }(src);
@@ -1144,11 +1144,11 @@ module.exports = meta => {
         ).then(blob => {
           setImageFromIDB(storedImages => {
             storedImages.push({ image: blob, selected: false, src: null, id: storedImages.length + 1 });
-            BdApi.showToast("Successfully added to BackgroundLibrary", { type: 'success' });
+            BdApi.showToast("Successfully added to BackgroundManager", { type: 'success' });
           })
         }).catch(err => {
           console.error('Status ', err)
-          BdApi.showToast("Failed to add to BackgroundLibrary. Status " + err, { type: 'error' });
+          BdApi.showToast("Failed to add to BackgroundManager. Status " + err, { type: 'error' });
         });
       }, icon: s => jsx('svg', {
         className: s.className,
@@ -1218,12 +1218,12 @@ module.exports = meta => {
     DOM.removeStyle(meta.slug + '-style');
     DOM.addStyle(meta.slug + '-style',
       `
-.BackgroundLibrary-bgContainer {
+.BackgroundManager-bgContainer {
   position: absolute;
   inset: 0;
   isolation: isolate;
 }
-.BackgroundLibrary-bg {
+.BackgroundManager-bg {
   position: absolute;
   inset: 0;
   opacity: 0;
@@ -1233,7 +1233,7 @@ module.exports = meta => {
   mix-blend-mode: plus-lighter;
   transition: opacity ${constants.settings.transition.enabled ? constants.settings.transition.duration : 0}ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-.BackgroundLibrary-bg.active{
+.BackgroundManager-bg.active{
   opacity: 1;
 }
 @keyframes loading-animation {
@@ -1244,23 +1244,23 @@ module.exports = meta => {
   0% { opacity: 0; }
   100% { opacity: 1; }
 }
-.BackgroundLibrary-SettingsTextInput {
+.BackgroundManager-SettingsTextInput {
   flex-direction: row;
   align-items: center;
   margin-bottom: 20px;
 }
-.BackgroundLibrary-SettingsTextInput input {
+.BackgroundManager-SettingsTextInput input {
   width: fit-content;
   flex: 0 1 150px;
   text-align: right;
 }
-.BackgroundLibrary-inputWrapper {
+.BackgroundManager-inputWrapper {
   display: grid;
   grid-template-columns: 1fr auto;
   padding: 0.5rem 0.75rem 0.5rem 0.25rem;
   gap: 0.5rem;
 }
-.BackgroundLibrary-DropAndPasteArea {
+.BackgroundManager-DropAndPasteArea {
   position: relative;
   border: 2px solid var(--blue-400, currentColor);
   border-radius: .5rem;
@@ -1273,13 +1273,13 @@ module.exports = meta => {
   background: url( "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23333' d='M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z'/%3E%3C/svg%3E" ) center / contain no-repeat rgba(0, 0, 0, 0.5);
   transition: box-shadow 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-.BackgroundLibrary-DropAndPasteArea:is(:focus, .dragging, :focus-visible)::after {
+.BackgroundManager-DropAndPasteArea:is(:focus, .dragging, :focus-visible)::after {
   opacity: 1;
 }
-.BackgroundLibrary-DropAndPasteArea:is(:focus, .dragging, :focus-visible) {
+.BackgroundManager-DropAndPasteArea:is(:focus, .dragging, :focus-visible) {
   box-shadow: inset 0px 0px 16px 2px currentColor;
 }
-.BackgroundLibrary-DropAndPasteArea::after {
+.BackgroundManager-DropAndPasteArea::after {
   content: 'Drop or Paste Image Here';
   position: absolute;
   display: grid;
@@ -1291,36 +1291,36 @@ module.exports = meta => {
   font-weight: 600;
   transition: opacity 250ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-.BackgroundLibrary-UploadButton {
+.BackgroundManager-UploadButton {
   color: var(--green-430);
 }
-.BackgroundLibrary-UploadButton:is(:hover, :focus-visible) {
+.BackgroundManager-UploadButton:is(:hover, :focus-visible) {
   color: var(--green-500);
 }
-.BackgroundLibrary-UploadButton:is(:hover, :focus-visible) {
+.BackgroundManager-UploadButton:is(:hover, :focus-visible) {
   color: var(--green-530);
 }
-.BackgroundLibrary-SettingsButton {
+.BackgroundManager-SettingsButton {
   color: var(--brand-500);
 }
-.BackgroundLibrary-SettingsButton:is(:hover, :focus-visible) {
+.BackgroundManager-SettingsButton:is(:hover, :focus-visible) {
   color: var(--brand-560);
 }
-.BackgroundLibrary-SettingsButton:active {
+.BackgroundManager-SettingsButton:active {
   color: var(--brand-600);
 }
-.BackgroundLibrary-RemoveBgButton {
+.BackgroundManager-RemoveBgButton {
   color: var(--red-430);
 }
-.BackgroundLibrary-RemoveBgButton:is(:hover, :focus-visible) {
+.BackgroundManager-RemoveBgButton:is(:hover, :focus-visible) {
   color: var(--red-500);
 }
-.BackgroundLibrary-RemoveBgButton:active {
+.BackgroundManager-RemoveBgButton:active {
   color: var(--red-530);
 }
-.BackgroundLibrary-UploadButton,
-.BackgroundLibrary-SettingsButton,
-.BackgroundLibrary-RemoveBgButton {
+.BackgroundManager-UploadButton,
+.BackgroundManager-SettingsButton,
+.BackgroundManager-RemoveBgButton {
   display: grid;
   place-items: center;
   padding: 0.25rem;
@@ -1329,7 +1329,7 @@ module.exports = meta => {
   border-radius: 0.25rem;
   transition: color 250ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-.BackgroundLibrary-imageWrapper {
+.BackgroundManager-imageWrapper {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1345,10 +1345,10 @@ module.exports = meta => {
   box-shadow: 0px 3px 3px -2px rgba(80, 80, 80, 0.2), 0px 3px 4px 0px rgba(80, 80, 80, 0.14), 0px 1px 8px 0px rgba(80, 80, 80, 0.12);
   transition: outline-color 250ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-.BackgroundLibrary-imageWrapper.selected {
+.BackgroundManager-imageWrapper.selected {
   outline-color: var(--blue-400,currentColor);
 }
-.BackgroundLibrary-image {
+.BackgroundManager-image {
   font-style: italic;
   font-size: .75rem;
   background-repeat: no-repeat;
@@ -1360,11 +1360,11 @@ module.exports = meta => {
   min-width: 100%;
   animation: fade-in 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-.BackgroundLibrary-imageWrapper:hover > .BackgroundLibrary-deleteButton,
-.BackgroundLibrary-deleteButton:focus-visible {
+.BackgroundManager-imageWrapper:hover > .BackgroundManager-deleteButton,
+.BackgroundManager-deleteButton:focus-visible {
   opacity: 1;
 }
-.BackgroundLibrary-imageData {
+.BackgroundManager-imageData {
   position: absolute;
   z-index: 1;
   left: 0;
@@ -1376,7 +1376,7 @@ module.exports = meta => {
   overflow: hidden;
   background: linear-gradient(#0000, rgba(25, 25, 25, 0.8) .175rem) no-repeat;
 }
-.BackgroundLibrary-deleteButton {
+.BackgroundManager-deleteButton {
   display: flex;
   position: absolute;
   top: 3px;
@@ -1390,10 +1390,10 @@ module.exports = meta => {
   color: #fff;
   transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), opacity 250ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-.BackgroundLibrary-deleteButton:is(:hover, :focus-visible) {
+.BackgroundManager-deleteButton:is(:hover, :focus-visible) {
   background-color: #d15353; 
 }
-.BackgroundLibrary-gridWrapper {
+.BackgroundManager-gridWrapper {
   display: flex;
   flex-wrap: wrap;
   gap: .5rem;
@@ -1405,21 +1405,21 @@ module.exports = meta => {
   scrollbar-gutter: stable;
   mask-image: linear-gradient(#0000, #000 0.5rem, #000 calc(100% - 0.5rem), #0000 100%), linear-gradient(to left, #000 0.75rem, #0000 0.75rem);
 }
-.BackgroundLibrary-skeleton {
+.BackgroundManager-skeleton {
   display: grid;
   place-items: center;
   width: 100%;
   height: 100%;
   padding-bottom: 1rem;
 }
-.BackgroundLibrary-loader {
+.BackgroundManager-loader {
   aspect-ratio: 1;
   height: 22.5%;
   display: inline-block;
   color: var(--blue-400, currentColor);
   animation: 1.4s linear 0s infinite normal none running loading-animation;
 }
-.BackgroundLibrary-loader circle {
+.BackgroundManager-loader circle {
   stroke: currentColor;
   stroke-dasharray: 80px, 200px;
   stroke-dashoffset: 0;
@@ -1454,12 +1454,12 @@ module.exports = meta => {
     let bgContainer, activeIndex = 0, domBG = [];
     function create() {
       bgContainer = document.createElement('div');
-      bgContainer.classList.add('BackgroundLibrary-bgContainer');
+      bgContainer.classList.add('BackgroundManager-bgContainer');
       bgContainer.style.setProperty('--dimming', constants.settings.dimming || 0);
       const bg1 = document.createElement('div');
-      bg1.classList.add('BackgroundLibrary-bg');
+      bg1.classList.add('BackgroundManager-bg');
       const bg2 = document.createElement('div');
-      bg2.classList.add('BackgroundLibrary-bg');
+      bg2.classList.add('BackgroundManager-bg');
       domBG.push(bg1, bg2);
       bgContainer.prepend(...domBG);
       nativeContainer.prepend(bgContainer);
