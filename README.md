@@ -1,6 +1,9 @@
-Enhance your themes with a library for easy access to set and swap your background images. Images are no longer limited to https urls! No more searching for the image URL, opening the theme folder and replacing code lines.
+Enhance your themes with a method to easily access, set and swap your background images. Images are no longer limited to https urls! No more searching for the image URL, opening the theme folder and replacing code lines.
 
-Adds a slideshow feature, that will shuffle your backgrounds. Enabling transitions will allow for smooth swapping animation.
+Adds several features: 
+- Slideshow with a shuffle option
+- Transitions for smooth swapping animations
+- Adds a context menu option to add images
 
 
 _**Note**_: This plugin works in conjunction with themes, that allow the use of background images. Compatible with most themes. 
