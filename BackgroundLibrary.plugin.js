@@ -1504,7 +1504,7 @@ module.exports = meta => {
         property = Object.keys(cssVariables)[0];
       } else {
         for (const key of Object.keys(cssVariables)) { // prioritize background, bg, backdrop, image, img
-          if (key.toLowerCase().includes('background') || key.toLowerCase().includes('bg') || key.toLowerCase().includes('backdrop')) {
+          if (key.toLowerCase().includes('background') || key.toLowerCase().includes('bg') || key.toLowerCase().includes('wallpaper') || key.toLowerCase().includes('backdrop')) {
             property = key;
             break;
           }
