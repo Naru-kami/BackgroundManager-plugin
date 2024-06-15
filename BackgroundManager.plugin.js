@@ -1629,11 +1629,12 @@ module.exports = meta => {
             slideshow: { ...defaultSettings.slideshow, ...configs?.slideshow },
           }
         });
+        // create image containers
+        viewTransition.create();
         // On startup, check if there are any selected images inside the database, and if so, set it as background.
         setImageFromIDB();
-        // Start Slideshow if enabled, and create image containers
+        // Start Slideshow if enabled
         constants.settings.slideshow.enabled && slideShowManager.restart();
-        viewTransition.create();
         addButton();
         generateCSS();
       } catch (e) {
