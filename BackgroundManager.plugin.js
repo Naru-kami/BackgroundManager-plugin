@@ -19,6 +19,7 @@ module.exports = meta => {
     enableDrop: false,
     transition: { enabled: true, duration: 1000 },
     slideshow: { enabled: false, interval: 300000, shuffle: true },
+    overwriteCSS: true,
     dimming: 0,
     addContextMenu: true
   }
@@ -57,9 +58,7 @@ module.exports = meta => {
   }
 
   /**
-   * @template T
-   * @param {T | (() => T)} initialSettings 
-   * @returns {[T, React.Dispatch<T>]}
+   * @returns {[typeof defaultSettings, React.Dispatch<typeof defaultSettings>]}
    */
   function useSettings() {
     const [settings, setSettings] = useState(constants.settings);
@@ -647,7 +646,7 @@ module.exports = meta => {
       align: 'right',
       autoInvert: false,
       ignoreModalClicks: true,
-      spacing: 16,
+      spacing: 8,
       onRequestClose: () => setOpen(false),
       renderPopout: () => jsx(ManagerComponent),
       children: (e, t) => {
@@ -774,6 +773,18 @@ module.exports = meta => {
           ],
         }),
         jsx('div', { role: 'separator', className: constants.separator.separator }),
+        jsx(constants.nativeUI.FormSection, {
+          title: 'CSS Variable',
+          children: jsx(constants.nativeUI.FormSwitch, {
+            hideBorder: true,
+            value: setting.overwriteCSS,
+            note: 'Auto detects and overwrites the custom property of the themes\' background image.',
+            onChange: newVal => {
+              setSetting(prev => ({ ...prev, overwriteCSS: newVal }));
+              newVal ? (themeObserver.start(), viewTransition.setProperty()) : themeObserver.stop();
+            },
+          }, "Overwrite themes' CSS variable")
+        }),
         jsx(constants.nativeUI.FormSection, {
           title: 'Context Menu',
           children: jsx(constants.nativeUI.FormSwitch, {
@@ -1043,6 +1054,15 @@ module.exports = meta => {
         }, {
           type: 'separator',
         }, {
+          label: "Overwrite CSS variable",
+          type: 'toggle',
+          checked: settings.overwriteCSS,
+          action: () => setSettings(prev => {
+            prev.overwriteCSS = !prev.overwriteCSS;
+            prev.overwriteCSS ? (themeObserver.start(), viewTransition.setProperty()) : themeObserver.stop();
+            return prev;
+          })
+        }, {
           label: "Add Context Menus",
           type: 'toggle',
           checked: settings.addContextMenu,
@@ -1199,8 +1219,9 @@ module.exports = meta => {
     }).finally(() => {
       db?.close();
     });
-    // destroy any slideshows and image containers
+    // destroy any slideshows, mutation observer and image containers
     slideShowManager.stop();
+    themeObserver.stop();
     viewTransition.destroy();
     // remove the icon
     document.getElementById(meta.slug)?.remove();
@@ -1210,6 +1231,7 @@ module.exports = meta => {
     Patcher.unpatchAll(meta.slug);
     // remove styles
     DOM.removeStyle(meta.slug + '-style');
+    DOM.removeStyle('BackgroundManager-background');
   }
 
   // utility
@@ -1218,18 +1240,20 @@ module.exports = meta => {
     DOM.removeStyle(meta.slug + '-style');
     DOM.addStyle(meta.slug + '-style',
       `
+.${constants.baseLayer.bg} {
+  isolation: isolate;
+}
 .BackgroundManager-bgContainer {
   position: absolute;
   inset: 0;
+  z-index: -1;
   isolation: isolate;
 }
 .BackgroundManager-bg {
   position: absolute;
   inset: 0;
   opacity: 0;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  background: center/cover no-repeat fixed;
   mix-blend-mode: plus-lighter;
   transition: opacity ${constants.settings.transition.enabled ? constants.settings.transition.duration : 0}ms cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -1424,7 +1448,6 @@ module.exports = meta => {
   stroke-dasharray: 80px, 200px;
   stroke-dashoffset: 0;
 }
-
 `);
   }
 
@@ -1447,41 +1470,6 @@ module.exports = meta => {
     }
     return num.toString();
   }
-
-  /**  Controller for switching images */
-  const viewTransition = (function () {
-    const nativeContainer = document.querySelector('.' + Webpack.getModule(Filters.byKeys('baseLayer', 'bg')).bg);
-    let bgContainer, activeIndex = 0, domBG = [];
-    function create() {
-      bgContainer = document.createElement('div');
-      bgContainer.classList.add('BackgroundManager-bgContainer');
-      bgContainer.style.setProperty('--dimming', constants.settings.dimming || 0);
-      const bg1 = document.createElement('div');
-      bg1.classList.add('BackgroundManager-bg');
-      const bg2 = document.createElement('div');
-      bg2.classList.add('BackgroundManager-bg');
-      domBG.push(bg1, bg2);
-      bgContainer.prepend(...domBG);
-      nativeContainer.prepend(bgContainer);
-    }
-    /** @param {string} src  */
-    function setImage(src) {
-      if (domBG.length !== 2) return;
-      activeIndex ^= 1;
-      domBG[activeIndex].style.backgroundImage = 'linear-gradient(rgba(0,0,0,var(--dimming,0)), rgba(0,0,0,var(--dimming,0))), url(' + src + ')';
-      domBG[activeIndex].classList.add('active');
-      domBG[activeIndex ^ 1].classList.remove('active');
-    }
-    function removeImage() {
-      domBG.forEach(e => e.classList.remove('active'));
-    }
-    function destroy() {
-      domBG.forEach(e => e.remove());
-      bgContainer.remove();
-      domBG = [];
-    }
-    return { create, setImage, removeImage, destroy, bgContainer: () => bgContainer }
-  })();
 
   /**
    * Accessing the database and either sets the selected image as a background, or calls the callback with all items.
@@ -1606,6 +1594,128 @@ module.exports = meta => {
     return { start, restart, stop }
   }();
 
+  /**  Controller for switching images */
+  const viewTransition = (function () {
+    let bgContainer, activeIndex = 0, domBG = [], property, originalBackground = true;
+    function create() {
+      bgContainer = document.createElement('div');
+      bgContainer.classList.add('BackgroundManager-bgContainer');
+      bgContainer.style.setProperty('--dimming', constants.settings.dimming || 0);
+      const bg1 = document.createElement('div');
+      bg1.classList.add('BackgroundManager-bg');
+      const bg2 = document.createElement('div');
+      bg2.classList.add('BackgroundManager-bg');
+      domBG.push(bg1, bg2);
+      bgContainer.prepend(...domBG);
+      document.querySelector('.' + constants.baseLayer.bg).prepend(bgContainer);
+      constants.settings.overwriteCSS && setProperty(false);
+    }
+    /** @param {string} src  */
+    function setImage(src) {
+      if (domBG.length !== 2) return;
+      activeIndex ^= 1;
+      domBG[activeIndex].style.backgroundImage = 'linear-gradient(rgba(0,0,0,var(--dimming,0)), rgba(0,0,0,var(--dimming,0))), url(' + src + ')';
+      domBG[activeIndex].classList.add('active');
+      domBG[activeIndex ^ 1].classList.remove('active');
+      if (!property) return;
+      if (originalBackground) {
+        originalBackground = false;
+        setTimeout(() => {
+          DOM.removeStyle('BackgroundManager-background');
+          DOM.addStyle('BackgroundManager-background', `${property.selector} {${property.property}: url('${src}') !important;}`);
+        }, constants.settings.transition.duration)
+      } else {
+        DOM.removeStyle('BackgroundManager-background');
+        DOM.addStyle('BackgroundManager-background', `${property.selector} {${property.property}: url('${src}') !important;}`);
+      }
+    }
+    function removeImage() {
+      domBG.forEach(e => e.classList.remove('active'));
+      originalBackground = true
+      DOM.removeStyle('BackgroundManager-background');
+    }
+    function destroy() {
+      domBG.forEach(e => e.remove());
+      bgContainer.remove();
+      originalBackground = true
+      DOM.removeStyle('BackgroundManager-background');
+      domBG = [];
+    }
+    function setProperty(overwrite = true) {
+      const styleElement = document.querySelector('bd-head  bd-themes style:last-child');
+      if (!styleElement) return;
+      const sheet = [...document.styleSheets].find(sheet => sheet.ownerNode === styleElement);
+      if (!sheet) return;
+      const cssVariables = {};
+
+      // Iterate through the CSS rules in the stylesheet
+      for (const rule of sheet.cssRules) {
+        if (!rule || rule instanceof CSSImportRule || !(rule instanceof CSSStyleRule)) continue;
+        for (const customProperty of rule.style) {
+          if (customProperty.startsWith('--')) {
+            const value = rule.style.getPropertyValue(customProperty).trim();
+            if (value.startsWith('url')) {
+              if (!cssVariables[customProperty])
+                cssVariables[customProperty] = { value, selectors: [] };
+              cssVariables[customProperty].selectors.push(rule.selectorText || ':root');
+            }
+          }
+        }
+      }
+      if (!cssVariables) return;
+      let customProperty;
+      if (Object.keys(cssVariables).length === 1) {
+        customProperty = Object.keys(cssVariables)[0];
+      } else {
+        for (const key of Object.keys(cssVariables)) { // prioritize background, bg, backdrop
+          if (key.toLowerCase().includes('background') || key.toLowerCase().includes('bg') || key.toLowerCase().includes('wallpaper') || key.toLowerCase().includes('backdrop')) {
+            customProperty = key;
+            break;
+          }
+        }
+        if (!customProperty) {
+          for (const key of Object.keys(cssVariables)) { // if no variable is found, look for images.
+            if (key.toLowerCase().includes('image') || key.toLowerCase().includes('img')) {
+              customProperty = key;
+              break;
+            }
+          }
+        }
+      }
+      console.log('\nold: ', property, '\nnew: ', { property: customProperty, selector: cssVariables[customProperty].selectors[0] });
+      if (!customProperty) return (property = null);
+      property = { property: customProperty, selector: cssVariables[customProperty].selectors[0] };
+      overwrite && setImageFromIDB(storedImages => {
+        storedImages.forEach(image => {
+          if (image.selected && image.src) {
+            URL.revokeObjectURL(image.src);
+            image.src = URL.createObjectURL(image.image);
+            DOM.removeStyle('BackgroundManager-background');
+            DOM.addStyle('BackgroundManager-background', `${property.selector} {${property.property}: url('${image.src}') !important;}`);
+          }
+        })
+      });
+    }
+    return { create, setImage, removeImage, destroy, bgContainer: () => bgContainer, setProperty }
+  })();
+
+  const themeObserver = function () {
+    let nodeObserver;
+    function start() {
+      if (nodeObserver) stop();
+      nodeObserver = new MutationObserver(() => {
+        viewTransition.setProperty();
+      })
+      nodeObserver.observe(document.querySelector('bd-head  bd-themes'), { childList: true, subtree: true });
+    }
+    function stop() {
+      DOM.removeStyle('BackgroundManager-background');
+      nodeObserver?.disconnect();
+      nodeObserver = null;
+    }
+    return { start, stop }
+  }();
+
   return {
     start: () => {
       try {
@@ -1620,6 +1730,7 @@ module.exports = meta => {
           originalLink: Webpack.getModule(Filters.byKeys('originalLink')), // class for image embed
           scrollbar: Webpack.getModule(Filters.byKeys("thin")), // classes for scrollable content
           separator: Webpack.getModule(Filters.byKeys('scroller', 'separator')), // classes for separator
+          baseLayer: Webpack.getModule(Filters.byKeys('baseLayer', 'bg')), // class of Discord's base layer
           nativeUI: Webpack.getModule(Filters.byKeys('FormSwitch', 'FormItem')), // native ui module
           // DiscordNative: Webpack.getByKeys('copyImage') // copyImage, saveImage
           settings: {
@@ -1635,6 +1746,7 @@ module.exports = meta => {
         setImageFromIDB();
         // Start Slideshow if enabled
         constants.settings.slideshow.enabled && slideShowManager.restart();
+        constants.settings.overwriteCSS && themeObserver.start();
         addButton();
         generateCSS();
       } catch (e) {
