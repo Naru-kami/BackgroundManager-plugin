@@ -21,9 +21,9 @@ module.exports = meta => {
     slideshow: { enabled: false, interval: 300000, shuffle: true },
     overwriteCSS: true,
     adjustment: {
-      dimming: 0,
       xPosition: 0,
       yPosition: 0,
+      dimming: 0,
       blur: 0,
       grayscale: 0,
       saturate: 100,
@@ -549,7 +549,7 @@ module.exports = meta => {
         const toPush = [];
         files.forEach((file, i) => {
           if (!file.data || !['png', 'jpg', 'jpeg', 'jpe', 'jfif', 'exif', 'bmp', 'dib', 'rle', 'tiff', 'tif', 'gif', 'jxr', 'wpd', 'wmp', 'webp'].includes(file.filename?.split('.').pop()?.toLowerCase())) {
-            console.log('Could not upload ' + file.filename + '. Data is empty, or ' + file.filename + ' is not an image.')
+            console.warn('Could not upload ' + file.filename + '. Data is empty, or ' + file.filename + ' is not an image.')
             BdApi.showToast('Could not upload ' + file.filename + '. Data is empty, or ' + file.filename + ' is not an image.', { type: 'error' });
             return;
           }
@@ -1060,7 +1060,6 @@ module.exports = meta => {
           type: "submenu",
           items: [
             {
-            }, {
               label: "x-Position",
               type: "custom",
               render: () => jsx(MenuInput, {
@@ -1740,7 +1739,6 @@ module.exports = meta => {
         domBG[activeIndex].style.backgroundImage = 'linear-gradient(rgba(0,0,0,var(--BgManager-dimming,0)), rgba(0,0,0,var(--BgManager-dimming,0))), url(' + src + ')';
         domBG[activeIndex].classList.add('active');
         domBG[activeIndex ^ 1].classList.remove('active');
-        console.log(originalBackground)
         if (!property) return;
         if (originalBackground) {
           originalBackground = false;
@@ -1870,11 +1868,11 @@ module.exports = meta => {
         // create image containers
         viewTransition.create();
         generateCSS();
-        // On startup, check if there are any selected images inside the database, and if so, set it as background.
-        setImageFromIDB();
         // Start Slideshow if enabled
         constants.settings.slideshow.enabled && slideShowManager.restart();
         constants.settings.overwriteCSS && themeObserver.start();
+        // On startup, check if there are any selected images inside the database, and if so, set it as background.
+        setImageFromIDB();
         addButton();
       } catch (e) {
         console.error(e);
