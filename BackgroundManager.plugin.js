@@ -1276,7 +1276,7 @@ module.exports = meta => {
   }();
 
   function BuildMenuItem(src) {
-    return jsx(ErrorBoundary, { fallback: 'Internal Component Error' }, jsx(ContextMenu.Group, null, jsx(ContextMenu.Item, {
+    return jsx(ContextMenu.Group, null, jsx(ContextMenu.Item, {
       id: 'add-Manager',
       label: 'Add to Background Manager',
       action: async () => {
@@ -1321,7 +1321,7 @@ module.exports = meta => {
           d: "M19 10v7h-12v-12h7v-2h-7c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-7zM10.5 12.67l1.69 2.26 2.48-3.1 3.33 4.17h-10zM1 7v14c0 1.1.9 2 2 2h14v-2h-14v-14zM21 3v-3h-2v3h-3c.01.01 0 2 0 2h3v2.99c.01.01 2 0 2 0v-2.99h3v-2z"
         })
       })
-    })))
+    }))
   }
 
   /** Patches the button to the HeaderBar */
