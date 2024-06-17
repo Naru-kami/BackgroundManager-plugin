@@ -843,7 +843,6 @@ module.exports = meta => {
     const [textValue, setTextValue] = useState(value + '');
     const [sliderValue, setSliderValue] = useState(value);
 
-    const timeoutRef = useRef(null);
     const oldValue = useRef(value + '');
     const ringTarget = useRef(null);
     const ID = useId();
@@ -854,11 +853,6 @@ module.exports = meta => {
     const handlSliderChange = useCallback(newValue => {
       newValue = Number(newValue.toFixed(props.decimals ?? 0));
       setSliderValue(newValue);
-      // Discords Slider component doesn't support onCommit. So debounce it is sadge... 
-      timeoutRef.current && clearTimeout(timeoutRef.current)
-      timeoutRef.current = setTimeout(() => {
-        onSliderCommit(newValue);
-      }, 250);
       props.onSlide?.(newValue);
     }, [setSliderValue]);
 
@@ -883,14 +877,14 @@ module.exports = meta => {
         e.stopPropagation?.();
       }
     }, []);
-    const onSliderCommit = useCallback(newValue => {
-      setTextValue(newValue + '');
-      onChange(newValue)
-    }, [onChange, setTextValue]);
+    const onSliderCommit = useCallback(e => {
+      if (e.type === 'mouseleave' && e.buttons !== 1) return;
+      setTextValue(sliderValue + '');
+      onChange(sliderValue)
+    }, [onChange, setTextValue, sliderValue]);
 
     useEffect(() => {
       ringTarget.current?.blur();
-      return () => timeoutRef.current && clearTimeout(timeoutRef.current)
     }, []);
 
     return jsx('div', {
@@ -929,6 +923,8 @@ module.exports = meta => {
         props.type !== 'number' ? null : jsx('div', {
           className: props.disabled ? constants.separator.disabled : '',
           disabled: props.disabled,
+          onClick: onSliderCommit,
+          onMouseLeave: onSliderCommit,
           style: { gridColumn: 'span 2' },
           children: jsx(constants.nativeUI.MenuSliderControl, {
             value: sliderValue,
