@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 1.0.0
+ * @version 1.1.0
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -379,7 +379,16 @@ module.exports = meta => {
       });
 
     }, [setImages]);
-
+    const onNextShuffle = useCallback(() => {
+      const currentIndex = images.reduce((p, c, i) => c.selected ? i : p, null);
+      let x, it = 0;
+      do x = Math.floor(Math.random() * images.length)
+      while (x === currentIndex && it++ < 25)
+      const item = images[x];
+      handleSelect(item.id);
+      constants.settings.slideshow.enabled ? slideShowManager.restart() : slideShowManager.stop();
+      viewTransition.setImage(item.src);
+    }, [images, handleSelect]);
 
     useUnmount((ims) => {
       // Clean up all object urls when component unmounts
@@ -402,7 +411,8 @@ module.exports = meta => {
           onDrop: handleDrop,
           onPaste: handlePaste,
           onRemove: handleRemove,
-          onUpload: handleUpload
+          onUpload: handleUpload,
+          rerender: setImages
         }), jsx('div', {
           role: 'separator',
           className: constants.separator.separator,
@@ -410,9 +420,23 @@ module.exports = meta => {
         }), jsx('div', {
           className: ['BackgroundManager-gridWrapper', constants.scrollbar.thin].join(' '),
         }, images.reduce((p, c) => p + c.image.size, 0) ? jsx('div', {
-          style: { width: '100%' },
+          style: { width: '100%', display: 'flex', justifyContent: 'space-between' },
           className: constants.textStyles['text-sm/semibold'],
-          children: 'Total size in memory: ' + formatNumber(images.reduce((p, c) => p + c.image.size, 0)) + 'B',
+          children: [
+            'Total size in memory: ' + formatNumber(images.reduce((p, c) => p + c.image.size, 0)) + 'B',
+            constants.settings.slideshow.enabled && constants.settings.slideshow.shuffle ? jsx(IconButton, {
+              TooltipProps: { text: 'Next Background Image' },
+              ButtonProps: {
+                style: { padding: '0', marginRight: '7px' },
+                onClick: onNextShuffle,
+                className: 'BackgroundManager-nextButton ' + constants.textStyles.defaultColor,
+              },
+              SvgProps: {
+                width: '18', height: '18',
+                path: 'M5.7 6.71c-.39.39-.39 1.02 0 1.41L9.58 12 5.7 15.88c-.39.39-.39 1.02 0 1.41.39.39 1.02.39 1.41 0l4.59-4.59c.39-.39.39-1.02 0-1.41L7.12 6.71c-.39-.39-1.03-.39-1.42 0M12.29 6.71c-.39.39-.39 1.02 0 1.41L16.17 12l-3.88 3.88c-.39.39-.39 1.02 0 1.41.39.39 1.02.39 1.41 0l4.59-4.59c.39-.39.39-1.02 0-1.41L13.7 6.7c-.38-.38-1.02-.38-1.41.01'
+              }
+            }) : null
+          ],
         }) : null, images.map((e, i) => {
           return jsx(ImageComponent, {
             key: i,
@@ -527,7 +551,7 @@ module.exports = meta => {
     )
   }
 
-  function InputComponent({ onDrop, onPaste, onRemove, onUpload }) {
+  function InputComponent({ onDrop, onPaste, onRemove, onUpload, rerender }) {
     const [processing, setProcessing] = useState([]);
     const dropArea = useRef(null);
 
@@ -626,7 +650,7 @@ module.exports = meta => {
             path: 'M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2m0 12H4V6h5.17l2 2H20zM9.41 14.42 11 12.84V17h2v-4.16l1.59 1.59L16 13.01 12.01 9 8 13.01z'
           }
         }),
-        jsx(InPopoutSettings),
+        jsx(InPopoutSettings, { rerender }),
         jsx(IconButton, {
           TooltipProps: { text: 'Remove Custom Background' },
           ButtonProps: {
@@ -945,7 +969,7 @@ module.exports = meta => {
     })
   }
 
-  function InPopoutSettings() {
+  function InPopoutSettings({ rerender }) {
     const [settings, setSettings] = useSettings();
     const handleClick = useCallback(e => {
       const MyContextMenu = ContextMenu.buildMenu([
@@ -993,6 +1017,7 @@ module.exports = meta => {
               action: () => setSettings(prev => {
                 prev.slideshow.enabled = !prev.slideshow.enabled;
                 prev.slideshow.enabled ? slideShowManager.restart() : slideShowManager.stop();
+                rerender(e => [...e]);
                 return prev;
               })
             }, {
@@ -1023,6 +1048,7 @@ module.exports = meta => {
               checked: settings.slideshow.shuffle,
               action: () => setSettings(prev => {
                 prev.slideshow.shuffle = !prev.slideshow.shuffle;
+                rerender(e => [...e]);
                 return prev;
               })
             }
@@ -1250,7 +1276,7 @@ module.exports = meta => {
   }();
 
   function BuildMenuItem(src) {
-    return jsx(ContextMenu.Group, null, jsx(ContextMenu.Item, {
+    return jsx(ErrorBoundary, { fallback: 'Internal Component Error' }, jsx(ContextMenu.Group, null, jsx(ContextMenu.Item, {
       id: 'add-Manager',
       label: 'Add to Background Manager',
       action: async () => {
@@ -1295,8 +1321,7 @@ module.exports = meta => {
           d: "M19 10v7h-12v-12h7v-2h-7c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-7zM10.5 12.67l1.69 2.26 2.48-3.1 3.33 4.17h-10zM1 7v14c0 1.1.9 2 2 2h14v-2h-14v-14zM21 3v-3h-2v3h-3c.01.01 0 2 0 2h3v2.99c.01.01 2 0 2 0v-2.99h3v-2z"
         })
       })
-
-    }))
+    })))
   }
 
   /** Patches the button to the HeaderBar */
@@ -1457,6 +1482,7 @@ module.exports = meta => {
 }
 .BackgroundManager-UploadButton,
 .BackgroundManager-SettingsButton,
+.BackgroundManager-nextButton,
 .BackgroundManager-RemoveBgButton {
   display: grid;
   place-items: center;
@@ -1480,7 +1506,7 @@ module.exports = meta => {
   padding: 0;
   overflow: hidden;
   box-shadow: 0px 3px 3px -2px rgba(80, 80, 80, 0.2), 0px 3px 4px 0px rgba(80, 80, 80, 0.14), 0px 1px 8px 0px rgba(80, 80, 80, 0.12);
-  transition: outline-color 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: outline-color 400ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .BackgroundManager-imageWrapper.selected {
   outline-color: var(--blue-400,currentColor);
