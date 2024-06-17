@@ -1685,7 +1685,7 @@ module.exports = meta => {
     function start() {
       if (interval != null) return; // Slideshow is already running
       interval = setInterval(() => {
-        console.log('Slideshow interval', constants.settings.slideshow.interval)
+        console.log('%c[BackgroundManager] %cSlideshow interval', "color: #DBDCA6", 'color: #FFF', constants.settings.slideshow.interval)
         setImageFromIDB(storedImages => {
           const currentIndex = storedImages.reduce((p, c, i) => c.selected ? i : p, null);
           if (constants.settings.slideshow.shuffle && storedImages.length > 2) { // Shuffle only for 3 or more images
@@ -1700,7 +1700,7 @@ module.exports = meta => {
                 e.selected = true;
                 e.src = URL.createObjectURL(e.image);
                 viewTransition.setImage(e.src);
-                console.log('Background Image updated on:', new Date())
+                console.log('%c[BackgroundManager] %cImage updated on:', "color: #DBDCA6", 'color: #FFF', new Date())
               }
             })
           } else {
@@ -1712,7 +1712,7 @@ module.exports = meta => {
                 e.selected = true;
                 e.src = URL.createObjectURL(e.image);
                 viewTransition.setImage(e.src);
-                console.log('Background Image updated on:', new Date())
+                console.log('%c[BackgroundManager] %cImage updated on:', "color: #DBDCA6", 'color: #FFF', new Date())
               }
             })
           }
@@ -1832,7 +1832,6 @@ module.exports = meta => {
           }
         }
       }
-      console.log('\nold: ', property, '\nnew: ', { property: customProperty, selector: cssVariables[customProperty].selectors[0] });
       if (!customProperty) return (property = null);
       property = { property: customProperty, selector: cssVariables[customProperty].selectors[0] };
       overwrite && setImageFromIDB(storedImages => {
