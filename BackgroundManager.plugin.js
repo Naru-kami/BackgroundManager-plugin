@@ -20,7 +20,15 @@ module.exports = meta => {
     transition: { enabled: true, duration: 1000 },
     slideshow: { enabled: false, interval: 300000, shuffle: true },
     overwriteCSS: true,
-    dimming: 0,
+    adjustment: {
+      dimming: 0,
+      xPosition: 0,
+      yPosition: 0,
+      blur: 0,
+      grayscale: 0,
+      saturate: 100,
+      contrast: 100
+    },
     addContextMenu: true
   }
 
@@ -706,16 +714,6 @@ module.exports = meta => {
     return jsx(Fragment, {
       children: [
         jsx(constants.nativeUI.FormSection, {
-          title: 'Drop Area',
-          children: jsx(constants.nativeUI.FormSwitch, {
-            hideBorder: true,
-            value: setting.enableDrop,
-            note: "When enabled, the popout will move infront of Discord's native drop area. It will also disabled the popout's focus trap to enable dragging.",
-            onChange: newVal => setSetting(prev => ({ ...prev, enableDrop: newVal })),
-          }, 'Enable Drop Area')
-        }),
-        jsx('div', { role: 'separator', className: constants.separator.separator }),
-        jsx(constants.nativeUI.FormSection, {
           title: 'Transitions',
           children: [
             jsx(constants.nativeUI.FormSwitch, {
@@ -723,7 +721,7 @@ module.exports = meta => {
               value: setting.transition.enabled,
               onChange: newVal => {
                 setSetting(prev => ({ ...prev, transition: { ...prev.transition, enabled: newVal } }));
-                generateCSS();
+                viewTransition.bgContainer().style.setProperty('--BgManager-transition-duration', (newVal ? setting.transition.duration ?? 0 : 0) + 'ms');
               },
             }, 'Enable Background Transitions'),
             jsx(FormTextInput, {
@@ -735,7 +733,7 @@ module.exports = meta => {
               suffix: 'ms',
               onChange: newVal => {
                 setSetting(prev => ({ ...prev, transition: { ...prev.transition, duration: Number(newVal) } }));
-                generateCSS();
+                viewTransition.bgContainer().style.setProperty('--BgManager-transition-duration', (setting.transition.enabled ? Number(newVal) ?? 0 : 0) + 'ms');
               },
             })
           ],
@@ -773,6 +771,15 @@ module.exports = meta => {
           ],
         }),
         jsx('div', { role: 'separator', className: constants.separator.separator }),
+        jsx(constants.nativeUI.FormSection, {
+          title: 'Drop Area',
+          children: jsx(constants.nativeUI.FormSwitch, {
+            hideBorder: true,
+            value: setting.enableDrop,
+            note: "When enabled, the popout will move infront of Discord's native drop area. It will also disabled the popout's focus trap to enable dragging.",
+            onChange: newVal => setSetting(prev => ({ ...prev, enableDrop: newVal })),
+          }, 'Enable Drop Area')
+        }),
         jsx(constants.nativeUI.FormSection, {
           title: 'CSS Variable',
           children: jsx(constants.nativeUI.FormSwitch, {
@@ -943,14 +950,6 @@ module.exports = meta => {
     const handleClick = useCallback(e => {
       const MyContextMenu = ContextMenu.buildMenu([
         {
-          label: "Enable Drop Area",
-          type: 'toggle',
-          checked: settings.enableDrop,
-          action: () => setSettings(prev => {
-            prev.enableDrop = !prev.enableDrop;
-            return prev;
-          })
-        }, {
           type: 'group',
           items: [
             {
@@ -962,7 +961,7 @@ module.exports = meta => {
                   prev.transition.enabled = !prev.transition.enabled;
                   return prev;
                 });
-                generateCSS();
+                viewTransition.bgContainer().style.setProperty('--BgManager-transition-duration', (settings.transition.enabled ? settings.transition.duration ?? 0 : 0) + 'ms');
               }
             }, {
               label: "Transition Duration",
@@ -979,7 +978,7 @@ module.exports = meta => {
                     prev.transition.duration = Number(newVal);
                     return prev;
                   });
-                  generateCSS();
+                  viewTransition.bgContainer().style.setProperty('--BgManager-transition-duration', (settings.transition.enabled ? Number(newVal) ?? 0 : 0) + 'ms');
                 },
                 suffix: " ms"
               }),
@@ -1031,24 +1030,13 @@ module.exports = meta => {
         }, {
           type: 'separator',
         }, {
-          label: "Image dimming",
-          type: "custom",
-          render: () => jsx(MenuInput, {
-            label: "Image Dimming",
-            value: settings.dimming,
-            type: 'number',
-            decimals: 2,
-            minValue: 0,
-            maxValue: 1,
-            onChange: newVal => setSettings(prev => {
-              prev.dimming = newVal;
-              return prev;
-            }),
-            onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--dimming', newVal),
-            suffix: ''
-          }),
-        }, {
-          type: 'separator',
+          label: "Enable Drop Area",
+          type: 'toggle',
+          checked: settings.enableDrop,
+          action: () => setSettings(prev => {
+            prev.enableDrop = !prev.enableDrop;
+            return prev;
+          })
         }, {
           label: "Overwrite CSS variable",
           type: 'toggle',
@@ -1067,6 +1055,135 @@ module.exports = meta => {
             prev.addContextMenu ? contextMenuPatcher.patch() : contextMenuPatcher.unpatch();
             return prev;
           })
+        }, {
+          label: "Adjust Image",
+          type: "submenu",
+          items: [
+            {
+            }, {
+              label: "x-Position",
+              type: "custom",
+              render: () => jsx(MenuInput, {
+                label: "x-Position",
+                value: settings.adjustment.xPosition,
+                type: 'number',
+                decimals: 0,
+                minValue: -50,
+                maxValue: 50,
+                onChange: newVal => setSettings(prev => {
+                  prev.adjustment.xPosition = Math.min(50, Math.max(-50, newVal));
+                  return prev;
+                }),
+                onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-position-x', Math.min(50, Math.max(-50, newVal)) + '%'),
+                suffix: ' %'
+              }),
+            }, {
+              label: "y-Position",
+              type: "custom",
+              render: () => jsx(MenuInput, {
+                label: "y-Position",
+                value: settings.adjustment.yPosition,
+                type: 'number',
+                decimals: 0,
+                minValue: -50,
+                maxValue: 50,
+                onChange: newVal => setSettings(prev => {
+                  prev.adjustment.yPosition = Math.min(50, Math.max(-50, newVal));
+                  return prev;
+                }),
+                onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-position-y', Math.min(50, Math.max(-50, newVal)) + '%'),
+                suffix: ' %'
+              }),
+            }, {
+              type: 'separator'
+            }, {
+              label: 'Dimming',
+              type: "custom",
+              render: () => jsx(MenuInput, {
+                label: "Dimming",
+                value: settings.adjustment.dimming,
+                type: 'number',
+                decimals: 2,
+                minValue: 0,
+                maxValue: 1,
+                onChange: newVal => setSettings(prev => {
+                  prev.adjustment.dimming = newVal;
+                  viewTransition.bgContainer()?.style.setProperty('--BgManager-dimming', newVal)
+                  return prev;
+                }),
+                onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-dimming', newVal),
+                suffix: ''
+              }),
+            }, {
+              label: "Blur",
+              type: "custom",
+              render: () => jsx(MenuInput, {
+                label: "Blur",
+                value: settings.adjustment.blur,
+                type: 'number',
+                decimals: 0,
+                minValue: 0,
+                maxValue: 100,
+                onChange: newVal => setSettings(prev => {
+                  prev.adjustment.blur = Math.min(100, Math.max(0, newVal));
+                  return prev;
+                }),
+                onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-blur', Math.min(100, Math.max(0, newVal)) + 'px'),
+                suffix: ' px'
+              }),
+            }, {
+              label: "Grayscale",
+              type: "custom",
+              render: () => jsx(MenuInput, {
+                label: "Grayscale",
+                value: settings.adjustment.grayscale,
+                type: 'number',
+                decimals: 0,
+                minValue: 0,
+                maxValue: 100,
+                onChange: newVal => setSettings(prev => {
+                  prev.adjustment.grayscale = Math.min(100, Math.max(0, newVal));
+                  return prev;
+                }),
+                onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-grayscale', Math.min(100, Math.max(0, newVal)) + '%'),
+                suffix: ' %'
+              }),
+            }, {
+              label: "Saturate",
+              type: "custom",
+              render: () => jsx(MenuInput, {
+                label: "Saturation",
+                value: settings.adjustment.saturate,
+                type: 'number',
+                decimals: 0,
+                minValue: 0,
+                maxValue: 300,
+                onChange: newVal => setSettings(prev => {
+                  prev.adjustment.saturate = Math.min(300, Math.max(0, newVal));
+                  return prev;
+                }),
+                onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-saturation', Math.min(300, Math.max(0, newVal)) + '%'),
+                suffix: ' %'
+              }),
+            }, {
+              label: "Contrast",
+              type: "custom",
+              render: () => jsx(MenuInput, {
+                label: "Contrast",
+                value: settings.adjustment.contrast,
+                type: 'number',
+                decimals: 0,
+                minValue: 0,
+                maxValue: 300,
+                onChange: newVal => setSettings(prev => {
+                  prev.adjustment.contrast = Math.min(300, Math.max(0, newVal));
+                  return prev;
+                }),
+                onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-contrast', Math.min(300, Math.max(0, newVal)) + '%'),
+                suffix: ' %'
+              }),
+            }
+          ]
         }
       ]);
       ContextMenu.open(e, MyContextMenu);
@@ -1249,9 +1366,10 @@ module.exports = meta => {
   position: absolute;
   inset: 0;
   opacity: 0;
-  background: center/cover no-repeat fixed;
+  background: calc(50% - var(--BgManager-position-x, 0%)) calc(50% - var(--BgManager-position-y, 0%)) / cover no-repeat fixed;
+  filter: grayscale(var(--BgManager-grayscale, 0%)) contrast(var(--BgManager-contrast, 100%)) saturate(var(--BgManager-saturation, 100%)) blur(var(--BgManager-blur, 0px));
   mix-blend-mode: plus-lighter;
-  transition: opacity ${constants.settings.transition.enabled ? constants.settings.transition.duration : 0}ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity var(--BgManager-transition-duration, 0ms) cubic-bezier(0.4, 0, 0.2, 1);
 }
 .BackgroundManager-bg.active{
   opacity: 1;
@@ -1596,7 +1714,14 @@ module.exports = meta => {
     function create() {
       bgContainer = document.createElement('div');
       bgContainer.classList.add('BackgroundManager-bgContainer');
-      bgContainer.style.setProperty('--dimming', constants.settings.dimming || 0);
+      bgContainer.style.setProperty('--BgManager-transition-duration', (constants.settings.transition.enabled ? constants.settings.transition.duration ?? 0 : 0) + 'ms');
+      constants.settings.adjustment.xPosition && bgContainer.style.setProperty('--BgManager-position-x', constants.settings.adjustment.xPosition + '%');
+      constants.settings.adjustment.yPosition && bgContainer.style.setProperty('--BgManager-position-y', constants.settings.adjustment.yPosition + '%');
+      constants.settings.adjustment.dimming && bgContainer.style.setProperty('--BgManager-dimming', constants.settings.adjustment.dimming);
+      constants.settings.adjustment.blur && bgContainer.style.setProperty('--BgManager-blur', constants.settings.adjustment.blur + 'px');
+      constants.settings.adjustment.grayscale && bgContainer.style.setProperty('--BgManager-grayscale', constants.settings.adjustment.grayscale + '%');
+      constants.settings.adjustment.saturate !== 100 && bgContainer.style.setProperty('--BgManager-saturation', constants.settings.adjustment.saturate + '%');
+      constants.settings.adjustment.contrast !== 100 && bgContainer.style.setProperty('--BgManager-contrast', constants.settings.adjustment.contrast + '%');
       const bg1 = document.createElement('div');
       bg1.classList.add('BackgroundManager-bg');
       const bg2 = document.createElement('div');
@@ -1609,21 +1734,26 @@ module.exports = meta => {
     /** @param {string} src  */
     function setImage(src) {
       if (domBG.length !== 2) return;
-      activeIndex ^= 1;
-      domBG[activeIndex].style.backgroundImage = 'linear-gradient(rgba(0,0,0,var(--dimming,0)), rgba(0,0,0,var(--dimming,0))), url(' + src + ')';
-      domBG[activeIndex].classList.add('active');
-      domBG[activeIndex ^ 1].classList.remove('active');
-      if (!property) return;
-      if (originalBackground) {
-        originalBackground = false;
-        setTimeout(() => {
+      const i = new Image();
+      i.onload = () => {
+        activeIndex ^= 1;
+        domBG[activeIndex].style.backgroundImage = 'linear-gradient(rgba(0,0,0,var(--BgManager-dimming,0)), rgba(0,0,0,var(--BgManager-dimming,0))), url(' + src + ')';
+        domBG[activeIndex].classList.add('active');
+        domBG[activeIndex ^ 1].classList.remove('active');
+        console.log(originalBackground)
+        if (!property) return;
+        if (originalBackground) {
+          originalBackground = false;
+          setTimeout(() => {
+            DOM.removeStyle('BackgroundManager-background');
+            DOM.addStyle('BackgroundManager-background', `${property.selector} {${property.property}: url('${src}') !important;}`);
+          }, constants.settings.transition.duration)
+        } else {
           DOM.removeStyle('BackgroundManager-background');
           DOM.addStyle('BackgroundManager-background', `${property.selector} {${property.property}: url('${src}') !important;}`);
-        }, constants.settings.transition.duration)
-      } else {
-        DOM.removeStyle('BackgroundManager-background');
-        DOM.addStyle('BackgroundManager-background', `${property.selector} {${property.property}: url('${src}') !important;}`);
+        }
       }
+      i.src = src;
     }
     function removeImage() {
       domBG.forEach(e => e.classList.remove('active'));
@@ -1734,17 +1864,18 @@ module.exports = meta => {
             ...configs,
             transition: { ...defaultSettings.transition, ...configs?.transition },
             slideshow: { ...defaultSettings.slideshow, ...configs?.slideshow },
+            adjustment: { ...defaultSettings.adjustment, ...configs?.adjustment }
           }
         });
         // create image containers
         viewTransition.create();
+        generateCSS();
         // On startup, check if there are any selected images inside the database, and if so, set it as background.
         setImageFromIDB();
         // Start Slideshow if enabled
         constants.settings.slideshow.enabled && slideShowManager.restart();
         constants.settings.overwriteCSS && themeObserver.start();
         addButton();
-        generateCSS();
       } catch (e) {
         console.error(e);
         stop();
