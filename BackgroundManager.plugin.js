@@ -424,7 +424,7 @@ module.exports = meta => {
           className: constants.textStyles['text-sm/semibold'],
           children: [
             'Total size in memory: ' + formatNumber(images.reduce((p, c) => p + c.image.size, 0)) + 'B',
-            constants.settings.slideshow.enabled && constants.settings.slideshow.shuffle ? jsx(IconButton, {
+            constants.settings.slideshow.enabled && constants.settings.slideshow.shuffle && images.length >= 2 ? jsx(IconButton, {
               TooltipProps: { text: 'Next Background Image' },
               ButtonProps: {
                 style: { padding: '0', marginRight: '7px' },
