@@ -476,8 +476,18 @@ module.exports = meta => {
           label: "Copy Image",
           action: async () => {
             try {
-              const arrayBuffer = await item.image.arrayBuffer()
-              DiscordNative.clipboard.copyImage(new Uint8Array(arrayBuffer), item.src)
+              if (item.image.type === 'image/png' || item.image.type === 'image/jpeg') {
+                const arrayBuffer = await item.image.arrayBuffer()
+                DiscordNative.clipboard.copyImage(new Uint8Array(arrayBuffer), item.src)
+              } else {
+                const imageBitmap = await createImageBitmap(item.image);
+                const Canvas = new OffscreenCanvas(imageBitmap.width, imageBitmap.height);
+                const ctx = Canvas.getContext('2d');
+                ctx.drawImage(imageBitmap, 0, 0);
+                const pngBlob = await Canvas.convertToBlob({ type: 'image/png' });
+                const arrayBuffer = await pngBlob.arrayBuffer()
+                DiscordNative.clipboard.copyImage(new Uint8Array(arrayBuffer), item.src)
+              }
               BdApi.showToast("Image copied to clipboard!", { type: 'success' });
             } catch (err) {
               BdApi.showToast("Failed to copy Image. " + err, { type: 'error' });
