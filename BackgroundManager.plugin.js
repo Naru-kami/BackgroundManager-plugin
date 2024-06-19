@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 1.1.0
+ * @version 1.1.1
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -32,7 +32,7 @@ module.exports = meta => {
     addContextMenu: true
   }
 
-  /** @type {{settings: typeof defaultSettings, [key: string]: unknown}} */
+  /** @type { {settings: typeof defaultSettings, [key: string]: unknown} } */
   const constants = {};
   /**
    * @typedef {Object} ImageItem
@@ -43,27 +43,6 @@ module.exports = meta => {
   */
 
   // Hooks
-  /**
-   * Utility function to call a callback with the latest state on unmount.
-   * @template T
-   * @param {(state: T) => void} callback
-   * @param {T} state
-   */
-  function useUnmount(callback, state) {
-    const stateRef = useRef(state);
-
-    // Update the ref to the latest state on every render
-    useEffect(() => {
-      stateRef.current = state;
-    }, [state]);
-
-    // Cleanup effect to call the callback with the latest state on unmount
-    useEffect(() => {
-      return () => {
-        callback(stateRef.current);
-      };
-    }, []);
-  }
 
   /**
    * @returns {[typeof defaultSettings, React.Dispatch<typeof defaultSettings>]}
@@ -149,9 +128,9 @@ module.exports = meta => {
       newItems.forEach((e, i) => {
         e.id = i + 1; // Ensure sequential key paths
         if (!prevIds.has(e.id)) {
-          store.add({ ...e, src: e.selected ? e.src : null });
+          store.add(e);
         } else {
-          store.put({ ...e, src: e.selected ? e.src : null });
+          store.put(e);
         }
       });
 
@@ -180,35 +159,45 @@ module.exports = meta => {
     /** @type [ImageItem[], React.Dispatch<React.SetStateAction<ImageItem[]>>] */
     const [items, setItems] = useState([]);
     const countEffect = useRef(0);
-    const effectCallback = useCallback(/** @param {(storedItems: ImageItem[], database: IDBDatabase) => void} cb */ cb => {
+    const accessDB = useCallback(/** @param {(storedItems: ImageItem[], database: IDBDatabase) => void} cb */ cb => {
       /** @type {IDBDatabase | undefined} db */
       let db;
-      openDB(storeName)
-        .then(database => {
-          db = database;
-          return getAllItems(db, storeName);
-        })
-        .then(storedItems => cb(storedItems, db))
-        .catch(err => {
-          console.error('Error opening database:', err);
-        });
-
-      return () => {
+      openDB(storeName).then(database => {
+        db = database;
+        return getAllItems(db, storeName);
+      }).then(storedItems =>
+        cb(storedItems, db)
+      ).catch(err => {
+        console.error('Error opening database: ', err);
+      }).finally(() => {
         db?.close();
-      };
-    }, [openDB, getAllItems]);
+      });
+    }, []);
 
     useEffect(() => {
-      effectCallback(storedItems => setItems(storedItems.map(e => {
-        if (!e.src)
-          e.src = URL.createObjectURL(e.image);
-        return e;
-      })))
+      accessDB(storedItems => {
+        setItems(storedItems.map(e => {
+          if (!e.src) e.src = URL.createObjectURL(e.image);
+          return e;
+        }))
+      })
+      return () => {
+        accessDB((storedItems, db) => {
+          const clearedItems = storedItems.map(e => {
+            if (!e.selected) {
+              URL.revokeObjectURL(e.src);
+              e.src = null;
+            }
+            return e;
+          });
+          saveItems(db, storeName, clearedItems, storedItems);
+        })
+      }
     }, []);
     useEffect(() => {
       countEffect.current++;
-      if (countEffect.current > 2) {
-        effectCallback((storedItems, db) => {
+      if (countEffect.current > 1) {
+        accessDB((storedItems, db) => {
           saveItems(db, storeName, items, storedItems);
         })
       }
@@ -389,16 +378,6 @@ module.exports = meta => {
       constants.settings.slideshow.enabled ? slideShowManager.restart() : slideShowManager.stop();
       viewTransition.setImage(item.src);
     }, [images, handleSelect]);
-
-    useUnmount((ims) => {
-      // Clean up all object urls when component unmounts
-      ims.forEach(e => {
-        if (!e.selected) {
-          URL.revokeObjectURL(e.src);
-          e.src = null;
-        }
-      });
-    }, images);
 
     return jsx('div', {
       className: [constants.messagesPopoutClasses.messageGroupWrapper, constants.markupStyles.markup, constants.messagesPopoutClasses.messagesPopout].join(' '),
@@ -1357,7 +1336,7 @@ module.exports = meta => {
       return getAllItems(db, 'images');
     }).then(storedItems => {
       storedItems.forEach(e => {
-        if (e.selected) URL.revokeObjectURL(e.src);
+        if (e.src) URL.revokeObjectURL(e.src);
         e.src = null;
       });
       saveItems(db, 'images', storedItems, storedItems);
@@ -1624,23 +1603,15 @@ module.exports = meta => {
    * Accessing the database and either sets the selected image as a background, or calls the callback with all items.
    * @param {undefined | (storedItems: ImageItem[]) => void} callback Callback when the items have been loaded from the database
    */
-  function setImageFromIDB(callback) {
+  async function setImageFromIDB(callback) {
     let db;
-    openDB('images')
+    return openDB('images')
       .then(database => {
         db = database;
         return getAllItems(db, 'images');
       })
       .then(storedItems => {
-        if (callback) {
-          callback(storedItems);
-        } else {
-          storedItems.forEach(e => {
-            e.src && URL.revokeObjectURL(e.src);
-            e.src = e.selected ? URL.createObjectURL(e.image) : null;
-            if (e.selected) viewTransition.setImage(e.src)
-          });
-        }
+        callback(storedItems);
         saveItems(db, 'images', storedItems, storedItems);
       })
       .catch(err => {
@@ -1697,30 +1668,35 @@ module.exports = meta => {
       interval = setInterval(() => {
         console.log('%c[BackgroundManager] %cSlideshow interval', "color: #DBDCA6", 'color: #FFF', constants.settings.slideshow.interval)
         setImageFromIDB(storedImages => {
+          const mounted = document.querySelector('.BackgroundManager-gridWrapper');
           const currentIndex = storedImages.reduce((p, c, i) => c.selected ? i : p, null);
           if (constants.settings.slideshow.shuffle && storedImages.length > 2) { // Shuffle only for 3 or more images
             let x, it = 0;
             do x = Math.floor(Math.random() * storedImages.length)
             while (x === currentIndex && it++ < 25)
             storedImages.forEach(e => {
-              e.src && URL.revokeObjectURL(e.src);
-              e.src = null;
+              if (!mounted) {
+                e.src && URL.revokeObjectURL(e.src);
+                e.src = null;
+              }
               e.selected = false;
               if (e.id - 1 === x) {
                 e.selected = true;
-                e.src = URL.createObjectURL(e.image);
+                !mounted && (e.src = URL.createObjectURL(e.image));
                 viewTransition.setImage(e.src);
                 console.log('%c[BackgroundManager] %cImage updated on:', "color: #DBDCA6", 'color: #FFF', new Date())
               }
             })
           } else {
             storedImages.forEach((e, i) => {
-              e.src && URL.revokeObjectURL(e.src);
-              e.src = null;
+              if (!mounted) {
+                e.src && URL.revokeObjectURL(e.src);
+                e.src = null;
+              }
               e.selected = false;
               if (i === ((currentIndex + 1) || Math.floor(Math.random() * storedImages.length)) % storedImages.length) {
                 e.selected = true;
-                e.src = URL.createObjectURL(e.image);
+                !mounted && (e.src = URL.createObjectURL(e.image));
                 viewTransition.setImage(e.src);
                 console.log('%c[BackgroundManager] %cImage updated on:', "color: #DBDCA6", 'color: #FFF', new Date())
               }
@@ -1764,7 +1740,6 @@ module.exports = meta => {
       domBG.push(bg1, bg2);
       bgContainer.prepend(...domBG);
       document.querySelector('.' + constants.baseLayer.bg).prepend(bgContainer);
-      constants.settings.overwriteCSS && setProperty(false);
     }
     /** @param {string} src  */
     function setImage(src) {
@@ -1847,8 +1822,6 @@ module.exports = meta => {
       overwrite && setImageFromIDB(storedImages => {
         storedImages.forEach(image => {
           if (image.selected && image.src) {
-            URL.revokeObjectURL(image.src);
-            image.src = URL.createObjectURL(image.image);
             DOM.removeStyle('BackgroundManager-background');
             DOM.addStyle('BackgroundManager-background', `${property.selector} {${property.property}: url('${image.src}') !important;}`);
           }
@@ -1876,7 +1849,7 @@ module.exports = meta => {
   }();
 
   return {
-    start: () => {
+    start: async () => {
       try {
         const configs = Data.load(meta.slug, "settings");
         Object.assign(constants, {
@@ -1900,14 +1873,26 @@ module.exports = meta => {
             adjustment: { ...defaultSettings.adjustment, ...configs?.adjustment }
           }
         });
+        generateCSS();
+        // On startup, refresh objectURL of stored selected image. Wait until changes are saved.
+        await setImageFromIDB(storedImages =>
+          storedImages.forEach(e => {
+            e.src && URL.revokeObjectURL(e.src);
+            e.src = e.selected ? URL.createObjectURL(e.image) : null;
+          })
+        );
         // create image containers
         viewTransition.create();
-        generateCSS();
+        // set up css property using refreshed objectURL
+        constants.settings.overwriteCSS && viewTransition.setProperty(false);
+        // finally, set the selected image, if any, as background. A bit convoluted, but order is important.
+        setImageFromIDB(storedImages => {
+          const img = storedImages.find(image => image.selected);
+          img && viewTransition.setImage(img.src)
+        });
         // Start Slideshow if enabled
         constants.settings.slideshow.enabled && slideShowManager.restart();
         constants.settings.overwriteCSS && themeObserver.start();
-        // On startup, check if there are any selected images inside the database, and if so, set it as background.
-        setImageFromIDB();
         addButton();
       } catch (e) {
         console.error(e);
