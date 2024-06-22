@@ -521,9 +521,17 @@ module.exports = meta => {
             tabIndex: '-1',
             src: item.src || '',
             className: 'BackgroundManager-image',
-          }), !error ? jsx('span', {
-            className: ['BackgroundManager-imageData', constants.textStyles.defaultColor].join(' '),
-            children: 'SIZE: ' + formatNumber(item.image.size) + 'B',
+          }), !error ? jsx(Fragment, {
+            children: [
+              jsx('span', {
+                className: ['BackgroundManager-imageData', constants.textStyles.defaultColor].join(' '),
+                children: 'SIZE: ' + formatNumber(item.image.size) + 'B',
+              }),
+              jsx('span', {
+                className: ['BackgroundManager-imageType', constants.textStyles.defaultColor].join(' '),
+                children: item.image.type.split('/').pop().toUpperCase(),
+              })
+            ]
           }) : null, jsx(IconButton, {
             TooltipProps: { text: 'Delete Image' },
             ButtonProps: {
@@ -1494,7 +1502,6 @@ module.exports = meta => {
   outline: 2px solid transparent;
   padding: 0;
   overflow: hidden;
-  box-shadow: 0px 3px 3px -2px rgba(80, 80, 80, 0.2), 0px 3px 4px 0px rgba(80, 80, 80, 0.14), 0px 1px 8px 0px rgba(80, 80, 80, 0.12);
   transition: outline-color 400ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .BackgroundManager-imageWrapper.selected {
@@ -1518,7 +1525,6 @@ module.exports = meta => {
 }
 .BackgroundManager-imageData {
   position: absolute;
-  z-index: 1;
   left: 0;
   right: 0;
   bottom: 0;
@@ -1528,12 +1534,19 @@ module.exports = meta => {
   overflow: hidden;
   background: linear-gradient(#0000, rgba(25, 25, 25, 0.8) .175rem) no-repeat;
 }
+.BackgroundManager-imageType {
+  position: absolute;
+  right: 0.25rem;
+  bottom: 0;
+  letter-spacing: .7px;
+  font-size: 0.65rem;
+  font-family: 'gg mono';
+}
 .BackgroundManager-deleteButton {
   display: flex;
   position: absolute;
   top: 3px;
   right: 3px;
-  z-index: 1;
   border-radius: 4px;
   border: 0;
   padding: 1px;
@@ -1666,7 +1679,7 @@ module.exports = meta => {
     function start() {
       if (interval != null) return; // Slideshow is already running
       interval = setInterval(() => {
-        console.log('%c[BackgroundManager] %cSlideshow interval', "color: #DBDCA6", 'color: #FFF', constants.settings.slideshow.interval)
+        console.log('%c[BackgroundManager] %cSlideshow interval', "color:#DBDCA6;font-weight:bold", "", constants.settings.slideshow.interval)
         setImageFromIDB(storedImages => {
           const mounted = document.querySelector('.BackgroundManager-gridWrapper');
           const currentIndex = storedImages.reduce((p, c, i) => c.selected ? i : p, null);
@@ -1684,7 +1697,7 @@ module.exports = meta => {
                 e.selected = true;
                 !mounted && (e.src = URL.createObjectURL(e.image));
                 viewTransition.setImage(e.src);
-                console.log('%c[BackgroundManager] %cImage updated on:', "color: #DBDCA6", 'color: #FFF', new Date())
+                console.log('%c[BackgroundManager] %cImage updated on:', "color:#DBDCA6;font-weight:bold", "", new Date())
               }
             })
           } else {
@@ -1698,7 +1711,7 @@ module.exports = meta => {
                 e.selected = true;
                 !mounted && (e.src = URL.createObjectURL(e.image));
                 viewTransition.setImage(e.src);
-                console.log('%c[BackgroundManager] %cImage updated on:', "color: #DBDCA6", 'color: #FFF', new Date())
+                console.log('%c[BackgroundManager] %cImage updated on:', "color:#DBDCA6;font-weight:bold", "", new Date())
               }
             })
           }
@@ -1851,6 +1864,7 @@ module.exports = meta => {
   return {
     start: async () => {
       try {
+        !Object.keys(constants).length && console.log('%c[BackgroundManager] %cInitialized', "color:#DBDCA6;font-weight:bold", "")
         const configs = Data.load(meta.slug, "settings");
         Object.assign(constants, {
           toolbarClasses: Webpack.getModule(Filters.byKeys("title", "toolbar")), // classes for toolbar
