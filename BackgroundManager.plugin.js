@@ -2,11 +2,10 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 1.1.1
+ * @version 1.1.2
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
-'use strict';
 const { React, Webpack, Webpack: { Filters }, Patcher, DOM, ContextMenu, Data } = BdApi;
 
 /** @type {typeof import("react")} */
@@ -15,6 +14,7 @@ const { useState, useEffect, useRef, useCallback, useId, createElement: jsx, Fra
 const DATA_BASE_NAME = 'BackgroundManager';
 
 module.exports = meta => {
+  'use strict';
   const defaultSettings = {
     enableDrop: false,
     transition: { enabled: true, duration: 1000 },
@@ -691,7 +691,8 @@ module.exports = meta => {
   }
 
   function IconButton({ TooltipProps, ButtonProps, SvgProps }) {
-    const { component, ...restProps } = ButtonProps;
+    const { component = 'button', ...buttonRestProps } = ButtonProps;
+    const { path = '', ...svgRestProps } = SvgProps;
     return jsx(constants.nativeUI.Tooltip, {
       text: '',
       spacing: 8,
@@ -701,12 +702,12 @@ module.exports = meta => {
       ...TooltipProps,
     }, prop => jsx(constants.nativeUI.FocusRing, null,
       jsx(constants.nativeUI.FocusRing, null,
-        jsx(component || 'button', {
+        jsx(component, {
           onMouseEnter: prop.onMouseEnter,
           onMouseLeave: prop.onMouseLeave,
           onFocus: prop.onFocus,
           onBlur: prop.onBlur,
-          ...restProps,
+          ...buttonRestProps,
         }, jsx('svg', {
           x: '0', y: '0',
           focusable: 'false',
@@ -719,9 +720,9 @@ module.exports = meta => {
           viewBox: "0 0 24 24",
           children: jsx('path', {
             fill: "currentColor",
-            d: SvgProps.path
+            d: path
           }),
-          ...SvgProps,
+          ...svgRestProps,
         })
         )
       )
@@ -1276,7 +1277,7 @@ module.exports = meta => {
     return jsx(ContextMenu.Group, null, jsx(ContextMenu.Item, {
       id: 'add-Manager',
       label: 'Add to Background Manager',
-      action: async () => {
+      action: () => {
         let mediaURL = function (src) {
           let safeURL = function (url) { try { return new URL(url) } catch (e) { return null } }(src);
           return null == safeURL || safeURL.host === "cdn.discordapp.com" ? src : safeURL.origin === "https://media.discordapp.net" ? (safeURL.host = "cdn.discordapp.com",
@@ -1289,22 +1290,27 @@ module.exports = meta => {
               safeURL.searchParams.delete("height"),
               safeURL.toString())
         }(src);
-        fetch(new Request(mediaURL, {
-          method: "GET",
-          mode: "cors"
-        })).then(response =>
-          response.ok ? response : Promise.reject(response.status)
-        ).then(response =>
-          response.headers.get('Content-Type').startsWith('image/') ? response.blob() : Promise.reject('Item is not an image.')
-        ).then(blob => {
-          setImageFromIDB(storedImages => {
-            storedImages.push({ image: blob, selected: false, src: null, id: storedImages.length + 1 });
-            BdApi.showToast("Successfully added to BackgroundManager", { type: 'success' });
-          })
-        }).catch(err => {
+        try {
+          fetch(new Request(mediaURL, {
+            method: "GET",
+            mode: "cors"
+          })).then(response =>
+            response.ok ? response : Promise.reject(response.status)
+          ).then(response =>
+            response.headers.get('Content-Type').startsWith('image/') ? response.blob() : Promise.reject('Item is not an image.')
+          ).then(blob => {
+            setImageFromIDB(storedImages => {
+              storedImages.push({ image: blob, selected: false, src: null, id: storedImages.length + 1 });
+              BdApi.showToast("Successfully added to BackgroundManager", { type: 'success' });
+            })
+          }).catch(err => {
+            console.error('Status ', err)
+            BdApi.showToast("Failed to add to BackgroundManager. Status " + err, { type: 'error' });
+          });
+        } catch (err) {
           console.error('Status ', err)
           BdApi.showToast("Failed to add to BackgroundManager. Status " + err, { type: 'error' });
-        });
+        };
       }, icon: s => jsx('svg', {
         className: s.className,
         'aria-hidden': 'true',
@@ -1421,9 +1427,9 @@ module.exports = meta => {
 }
 .BackgroundManager-DropAndPasteArea {
   position: relative;
-  border: 2px solid var(--blue-400, currentColor);
+  border: 2px solid var(--blue-430, currentColor);
   border-radius: .5rem;
-  outline: 2px dashed var(--blue-400, currentColor);
+  outline: 2px dashed var(--blue-430, currentColor);
   outline-offset: -8px;
   grid-row: span 3;
   cursor: copy;
@@ -1448,7 +1454,7 @@ module.exports = meta => {
   cursor: inherit;
   font-size: 1.5rem;
   font-weight: 600;
-  transition: opacity 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .BackgroundManager-UploadButton {
   color: var(--green-430);
@@ -1460,13 +1466,13 @@ module.exports = meta => {
   color: var(--green-530);
 }
 .BackgroundManager-SettingsButton {
-  color: var(--brand-500);
+  color: var(--blue-430);
 }
 .BackgroundManager-SettingsButton:is(:hover, :focus-visible) {
-  color: var(--brand-560);
+  color: var(--blue-500);
 }
 .BackgroundManager-SettingsButton:active {
-  color: var(--brand-600);
+  color: var(--blue-530);
 }
 .BackgroundManager-RemoveBgButton {
   color: var(--red-430);
@@ -1487,7 +1493,7 @@ module.exports = meta => {
   background-color: #0000;
   aspect-ratio: 1;
   border-radius: 0.25rem;
-  transition: color 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .BackgroundManager-imageWrapper {
   display: inline-flex;
@@ -1505,7 +1511,7 @@ module.exports = meta => {
   transition: outline-color 400ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .BackgroundManager-imageWrapper.selected {
-  outline-color: var(--blue-400,currentColor);
+  outline-color: var(--blue-430,currentColor);
 }
 .BackgroundManager-image {
   font-style: italic;
@@ -1581,7 +1587,7 @@ module.exports = meta => {
   aspect-ratio: 1;
   height: 22.5%;
   display: inline-block;
-  color: var(--blue-400, currentColor);
+  color: var(--blue-430, currentColor);
   animation: 1.4s linear 0s infinite normal none running loading-animation;
 }
 .BackgroundManager-loader circle {
@@ -1763,7 +1769,7 @@ module.exports = meta => {
         domBG[activeIndex].style.backgroundImage = 'linear-gradient(rgba(0,0,0,var(--BgManager-dimming,0)), rgba(0,0,0,var(--BgManager-dimming,0))), url(' + src + ')';
         domBG[activeIndex].classList.add('active');
         domBG[activeIndex ^ 1].classList.remove('active');
-        if (!property) return;
+        if (!property || !constants.settings.overwriteCSS) return;
         if (originalBackground) {
           originalBackground = false;
           setTimeout(() => {
