@@ -516,7 +516,7 @@ module.exports = meta => {
         onClick: handleImageClick,
         onContextMenu: handleContextMenu,
         children: [
-          !loaded ? jsx(CircularProgress) : error ? jsx('div', null, 'Could not load image. Try to reopen.') : jsx('img', {
+          !loaded ? jsx(CircularProgress) : error ? jsx('div', null, 'Could not load image') : jsx('img', {
             ref: element,
             tabIndex: '-1',
             src: item.src || '',
@@ -556,25 +556,25 @@ module.exports = meta => {
       DiscordNative.fileManager.openFiles({
         properties: ['openFile', 'multiSelections'],
         filters: [
-          { name: 'All images', extensions: ['png', 'jpg', 'jpeg', 'jpe', 'jfif', 'exif', 'bmp', 'dib', 'rle', 'tiff', 'tif', 'gif', 'jxr', 'wpd', 'wmp', 'webp'] },
+          { name: 'All images', extensions: ['png', 'jpg', 'jpeg', 'jpe', 'jfif', 'exif', 'bmp', 'dib', 'rle', 'gif', 'avif', 'webp', 'svg'] },
           { name: 'PNG', extensions: ['png'] },
           { name: 'JPEG', extensions: ['jpg', 'jpeg', 'jpe', 'jfif', 'exif'] },
           { name: 'BMP', extensions: ['bmp', 'dib', 'rle'] },
-          { name: 'TIFF', extensions: ['tiff', 'tif'] },
           { name: 'GIF', extensions: ['gif'] },
-          { name: 'JPEG XR', extensions: ['jxr', 'wpd', 'wmp'] },
+          { name: 'AV1 (AVIF)', extensions: ['avif'] },
           { name: 'WebP', extensions: ['webp'] },
+          { name: 'SVG', extensions: ['svg'] },
         ]
       }).then(files => {
         if (!files.length) return;
         const toPush = [];
         files.forEach((file, i) => {
-          if (!file.data || !['png', 'jpg', 'jpeg', 'jpe', 'jfif', 'exif', 'bmp', 'dib', 'rle', 'tiff', 'tif', 'gif', 'jxr', 'wpd', 'wmp', 'webp'].includes(file.filename?.split('.').pop()?.toLowerCase())) {
+          if (!file.data || !['png', 'jpg', 'jpeg', 'jpe', 'jfif', 'exif', 'bmp', 'dib', 'rle', 'gif', 'avif', 'webp', 'svg'].includes(file.filename?.split('.').pop()?.toLowerCase())) {
             console.warn('Could not upload ' + file.filename + '. Data is empty, or ' + file.filename + ' is not an image.')
             BdApi.showToast('Could not upload ' + file.filename + '. Data is empty, or ' + file.filename + ' is not an image.', { type: 'error' });
             return;
           }
-          const blob = new Blob([file.data]);
+          const blob = new Blob([file.data], { type: getImageType(file.data) });
           toPush.push({
             image: blob,
             selected: false,
@@ -1673,6 +1673,23 @@ module.exports = meta => {
       node = node.parentElement;
     }
     return null;
+  }
+
+  /** Returns the mime type of the image @param {Uint8Array} buffer The UInt8Array buffer */
+  function getImageType(buffer) {
+    const mimeTypes = [
+      { mime: 'image/png', pattern: [0x89, 0x50, 0x4E, 0x47] },
+      { mime: 'image/jpeg', pattern: [0xFF, 0xD8, 0xFF] },
+      { mime: 'image/bmp', pattern: [0x42, 0x4D] },
+      { mime: 'image/gif', pattern: [0x47, 0x49, 0x46, 0x38] },
+      { mime: 'image/avif', pattern: [0x00, 0x00, 0x00, null, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66] },
+      { mime: 'image/webp', pattern: [0x52, 0x49, 0x46, 0x46, null, null, null, null, 0x57, 0x45, 0x42, 0x50] },
+      { mime: 'image/svg+xml', pattern: [0x3C, 0x73, 0x76, 0x67] },
+    ];
+    for (const { mime, pattern } of mimeTypes)
+      if (pattern.every((e, i) => e === null || e === buffer[i]))
+        return mime;
+    return '';
   }
 
   // Inits and Event Listeners
