@@ -1041,7 +1041,6 @@ module.exports = meta => {
                 suffix: " min"
               }),
             }, {
-              disabled: !settings.slideshow.enabled,
               label: "Shuffle Slideshow",
               type: 'toggle',
               checked: settings.slideshow.shuffle,
