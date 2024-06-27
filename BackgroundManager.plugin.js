@@ -418,8 +418,7 @@ module.exports = meta => {
           ],
         }) : null, images.map((e, i) => {
           return jsx(ImageComponent, {
-            key: i,
-            id: e.id,
+            key: e.src,
             item: e,
             onDelete: handleDelete,
             onSelect: handleSelect
@@ -430,7 +429,7 @@ module.exports = meta => {
     )
   }
 
-  function ImageComponent({ item, onDelete, onSelect, id }) {
+  function ImageComponent({ item, onDelete, onSelect }) {
     const [loaded, setLoaded] = useState(false);
     const [error, setError] = useState(false);
     const element = useRef(null);
@@ -438,17 +437,17 @@ module.exports = meta => {
       e.preventDefault?.();
       e.stopPropagation?.();
       e.stopImmediatePropagation?.();
-      onSelect(id);
+      onSelect(item.id);
       viewTransition.setImage(item.src);
-    }, [onSelect, id, item]);
+    }, [onSelect, item.id, item.src]);
     const handleDelete = useCallback(e => {
       e.preventDefault?.();
       e.stopPropagation?.();
       e.stopImmediatePropagation?.();
       URL.revokeObjectURL(item.src);
-      onDelete(id);
+      onDelete(item.id);
       item.selected && viewTransition.removeImage();
-    }, [onDelete, item, id, item.selected, item.src]);
+    }, [onDelete, item.id, item.selected, item.src]);
     const handleContextMenu = useCallback(e => {
       const MyContextMenu = ContextMenu.buildMenu([
         {
@@ -491,7 +490,7 @@ module.exports = meta => {
         }
       ]);
       ContextMenu.open(e, MyContextMenu)
-    }, [element.current, item, item.image, item.src]);
+    }, [element.current, item.image, item.src]);
 
     useEffect(() => {
       let first = true;
@@ -1697,11 +1696,20 @@ module.exports = meta => {
    * Manager to start and stop the slideshow. Internally handles the interval
    */
   const slideShowManager = function () {
-    let interval;
+    let interval, triggeredWhileHidden = false;
 
     function start() {
       if (interval != null) return; // Slideshow is already running
       interval = setInterval(() => {
+        if (document.visibilityState === 'hidden') {
+          if (triggeredWhileHidden) {
+            return;
+          } else {
+            triggeredWhileHidden = true;
+          }
+        } else {
+          triggeredWhileHidden = false;
+        }
         console.log('%c[BackgroundManager] %cSlideshow interval', "color:#DBDCA6;font-weight:bold", "", constants.settings.slideshow.interval)
         setImageFromIDB(storedImages => {
           const mounted = document.querySelector('.BackgroundManager-gridWrapper');
