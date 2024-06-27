@@ -1377,8 +1377,10 @@ module.exports = meta => {
   /** Generates the main CSS for the plugin */
   function generateCSS() {
     DOM.removeStyle(meta.slug + '-style');
-    DOM.addStyle(meta.slug + '-style',
-      `
+    DOM.addStyle(meta.slug + '-style', `
+::-webkit-inner-spin-button {
+    display: none;
+}
 .${constants.baseLayer.bg} {
   isolation: isolate;
 }
@@ -1397,7 +1399,7 @@ module.exports = meta => {
   mix-blend-mode: plus-lighter;
   transition: opacity var(--BgManager-transition-duration, 0ms) cubic-bezier(0.4, 0, 0.2, 1);
 }
-.BackgroundManager-bg.active{
+.BackgroundManager-bg.active {
   opacity: 1;
 }
 @keyframes loading-animation {
@@ -1461,7 +1463,7 @@ module.exports = meta => {
 .BackgroundManager-UploadButton:is(:hover, :focus-visible) {
   color: var(--green-500);
 }
-.BackgroundManager-UploadButton:is(:hover, :focus-visible) {
+.BackgroundManager-UploadButton:active {
   color: var(--green-530);
 }
 .BackgroundManager-SettingsButton {
