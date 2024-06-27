@@ -938,6 +938,7 @@ module.exports = meta => {
               value: textValue,
               inputRef: ringTarget,
               type: props.type ?? 'number',
+              inputClassName: !props.type === "number" ? null : "BackgroundManager-NumberInput",
               disabled: props.disabled,
               style: { height: '1.5rem', padding: '0.25rem', textAlign: 'right' },
               id: ID,
@@ -1040,6 +1041,7 @@ module.exports = meta => {
                 suffix: " min"
               }),
             }, {
+              disabled: !settings.slideshow.enabled,
               label: "Shuffle Slideshow",
               type: 'toggle',
               checked: settings.slideshow.shuffle,
@@ -1209,7 +1211,7 @@ module.exports = meta => {
         }
       ]);
       ContextMenu.open(e, MyContextMenu);
-    }, [open]);
+    }, [open, settings]);
 
     return jsx(IconButton, {
       TooltipProps: { text: 'Open Settings' },
@@ -1378,7 +1380,7 @@ module.exports = meta => {
   function generateCSS() {
     DOM.removeStyle(meta.slug + '-style');
     DOM.addStyle(meta.slug + '-style', `
-::-webkit-inner-spin-button {
+.BackgroundManager-NumberInput::-webkit-inner-spin-button {
     display: none;
 }
 .${constants.baseLayer.bg} {
