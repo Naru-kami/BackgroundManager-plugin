@@ -1701,8 +1701,13 @@ module.exports = meta => {
   const slideShowManager = function () {
     let interval, triggeredWhileHidden = false;
 
+    function handleVisibilityChange(e) {
+      e.target.visibilityState === 'visible' && (triggeredWhileHidden = false);
+    }
+
     function start() {
       if (interval != null) return; // Slideshow is already running
+      document.addEventListener("visibilitychange", handleVisibilityChange);
       interval = setInterval(() => {
         if (document.visibilityState === 'hidden') {
           if (triggeredWhileHidden) {
@@ -1710,8 +1715,6 @@ module.exports = meta => {
           } else {
             triggeredWhileHidden = true;
           }
-        } else {
-          triggeredWhileHidden = false;
         }
         console.log('%c[BackgroundManager] %cSlideshow interval', "color:#DBDCA6;font-weight:bold", "", constants.settings.slideshow.interval)
         setImageFromIDB(storedImages => {
@@ -1753,10 +1756,10 @@ module.exports = meta => {
       }, Math.max(constants.settings.slideshow.interval ?? 3e5, 3e4));
     }
     function stop() {
-      if (interval != null) {
-        clearInterval(interval);
-        interval = null;
-      }
+      interval && clearInterval(interval);
+      interval = null;
+      triggeredWhileHidden = false;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     }
     function restart() {
       stop();
@@ -1793,7 +1796,7 @@ module.exports = meta => {
       if (domBG.length !== 2) return;
       const i = new Image();
       i.onload = () => {
-        activeIndex ^= 1;
+        document.visibilityState === 'visible' && (activeIndex ^= 1);
         domBG[activeIndex].style.backgroundImage = 'linear-gradient(rgba(0,0,0,var(--BgManager-dimming,0)), rgba(0,0,0,var(--BgManager-dimming,0))), url(' + src + ')';
         domBG[activeIndex].classList.add('active');
         domBG[activeIndex ^ 1].classList.remove('active');
