@@ -1631,10 +1631,10 @@ module.exports = meta => {
    */
   function formatNumber(num) {
     const units = [
-      { value: 1e12, symbol: " T" },
-      { value: 1e9, symbol: " G" },
-      { value: 1e6, symbol: " M" },
-      { value: 1e3, symbol: " k" },
+      { value: 1099511627776, symbol: " Ti" },
+      { value: 1073741824, symbol: " Gi" },
+      { value: 1048576, symbol: " Mi" },
+      { value: 1024, symbol: " Ki" },
     ];
     for (const unit of units) {
       if (num >= unit.value) {
