@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 1.1.2
+ * @version 1.2.0
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -449,47 +449,71 @@ module.exports = meta => {
       item.selected && viewTransition.removeImage();
     }, [onDelete, item.id, item.selected, item.src]);
     const handleContextMenu = useCallback(e => {
-      const MyContextMenu = ContextMenu.buildMenu([
-        {
-          label: "Copy Image",
-          action: async () => {
-            try {
-              if (item.image.type === 'image/png' || item.image.type === 'image/jpeg') {
-                const arrayBuffer = await item.image.arrayBuffer()
-                DiscordNative.clipboard.copyImage(new Uint8Array(arrayBuffer), item.src)
-              } else {
-                const imageBitmap = await createImageBitmap(item.image);
-                const Canvas = new OffscreenCanvas(imageBitmap.width, imageBitmap.height);
-                const ctx = Canvas.getContext('2d');
-                ctx.drawImage(imageBitmap, 0, 0);
-                const pngBlob = await Canvas.convertToBlob({ type: 'image/png' });
-                const arrayBuffer = await pngBlob.arrayBuffer()
-                DiscordNative.clipboard.copyImage(new Uint8Array(arrayBuffer), item.src)
-              }
-              BdApi.showToast("Image copied to clipboard!", { type: 'success' });
-            } catch (err) {
-              BdApi.showToast("Failed to copy Image. " + err, { type: 'error' });
+      const saveAndCopy = [{
+        label: "Copy Image",
+        action: async () => {
+          try {
+            if (item.image.type === 'image/png' || item.image.type === 'image/jpeg') {
+              const arrayBuffer = await item.image.arrayBuffer()
+              DiscordNative.clipboard.copyImage(new Uint8Array(arrayBuffer), item.src)
+            } else {
+              const imageBitmap = await createImageBitmap(item.image);
+              const Canvas = new OffscreenCanvas(imageBitmap.width, imageBitmap.height);
+              const ctx = Canvas.getContext('2d');
+              ctx.drawImage(imageBitmap, 0, 0);
+              const pngBlob = await Canvas.convertToBlob({ type: 'image/png' });
+              const arrayBuffer = await pngBlob.arrayBuffer()
+              DiscordNative.clipboard.copyImage(new Uint8Array(arrayBuffer), item.src)
             }
-          }
-        }, {
-          label: "Save Image",
-          action: async () => {
-            try {
-              const arrayBuffer = await item.image.arrayBuffer();
-              let url = (new URL(item.src)).pathname.split('/').pop() || 'unknown';
-              const extension = item.image.type.split('/').pop();
-              if (extension) {
-                url += '.' + extension;
-              }
-              await DiscordNative.fileManager.saveWithDialog(new Uint8Array(arrayBuffer), url);
-              BdApi.showToast("Saved Image!", { type: 'success' });
-            } catch (err) {
-              BdApi.showToast("Failed to save Image. " + err, { type: 'error' });
-            }
+            BdApi.showToast("Image copied to clipboard!", { type: 'success' });
+          } catch (err) {
+            BdApi.showToast("Failed to copy Image. " + err, { type: 'error' });
           }
         }
+      }, {
+        label: "Save Image",
+        action: async () => {
+          try {
+            const arrayBuffer = await item.image.arrayBuffer();
+            let url = (new URL(item.src)).pathname.split('/').pop() || 'unknown';
+            const extension = item.image.type.split('/').pop();
+            if (extension) {
+              url += '.' + extension;
+            }
+            await DiscordNative.fileManager.saveWithDialog(new Uint8Array(arrayBuffer), url);
+            BdApi.showToast("Saved Image!", { type: 'success' });
+          } catch (err) {
+            BdApi.showToast("Failed to save Image. " + err, { type: 'error' });
+          }
+        }
+      }]
+      const ImageContextMenu = ContextMenu.buildMenu([{
+        label: "View Image",
+        action: event => {
+          event.currentTarget?.blur();
+          constants.nativeUI.openModal(modalEvent => {
+            return jsx(constants.nativeUI.ModalRoot, {
+              className: constants.imageModal.modal,
+              ...modalEvent,
+              onKeyDown: e => { e.key === "Escape" && (e.stopPropagation(), constants.nativeUI.closeModal("Zoomed Lazy Image Modal", "default")) },
+              size: constants.nativeUI.ModalSize.DYNAMIC,
+              children: jsx('img', {
+                style: { maxWidth: '85vw', maxHeight: '75vh', borderRadius: '3px' },
+                src: item.src,
+                alt: 'Image',
+                className: constants.imageModal.image,
+                onContextMenu: e => {
+                  const ModalContextMenu = ContextMenu.buildMenu(saveAndCopy);
+                  ContextMenu.open(e, ModalContextMenu);
+                }
+              })
+            })
+          }, { modalKey: "Zoomed Lazy Image Modal" }, "default")
+        }
+      },
+      ...saveAndCopy
       ]);
-      ContextMenu.open(e, MyContextMenu)
+      ContextMenu.open(e, ImageContextMenu)
     }, [element.current, item.image, item.src]);
 
     useEffect(() => {
@@ -1910,6 +1934,7 @@ module.exports = meta => {
           markupStyles: Webpack.getModule(Filters.byKeys("markup")),
           disabled: Webpack.getModule(Filters.byKeys("disabled", "labelRow")), // classes for disabled inputs
           layerContainerClass: Webpack.getModule(Filters.byKeys('layerContainer')), // class of Discord's nativelayer container
+          imageModal: Webpack.getModule(Filters.byKeys('modal', 'image')), // classes for image modal  
           originalLink: Webpack.getModule(Filters.byKeys('originalLink')), // class for image embed
           scrollbar: Webpack.getModule(Filters.byKeys("thin")), // classes for scrollable content
           separator: Webpack.getModule(Filters.byKeys('scroller', 'separator')), // classes for separator
