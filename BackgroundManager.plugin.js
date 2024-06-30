@@ -375,7 +375,7 @@ module.exports = meta => {
       while (x === currentIndex && it++ < 25)
       const item = images[x];
       handleSelect(item.id);
-      constants.settings.slideshow.enabled ? slideShowManager.restart() : slideShowManager.stop();
+      constants.settings.slideshow.enabled ? slideShowManager.start() : slideShowManager.stop();
       viewTransition.setImage(item.src);
     }, [images, handleSelect]);
 
@@ -474,14 +474,31 @@ module.exports = meta => {
         label: "Save Image",
         action: async () => {
           try {
-            const arrayBuffer = await item.image.arrayBuffer();
+            const arrayBuffer = new Uint8Array(await item.image.arrayBuffer());
             let url = (new URL(item.src)).pathname.split('/').pop() || 'unknown';
-            const extension = item.image.type.split('/').pop();
-            if (extension) {
-              url += '.' + extension;
+            const FileExtension = {
+              jpeg: [[0xFF, 0xD8, 0xFF, 0xEE]],
+              jpg: [[0xFF, 0xD8, 0xFF, 0xDB], [0xFF, 0xD8, 0xFF, 0xE0], [0xFF, 0xD8, 0xFF, 0xE1]],
+              png: [[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]],
+              bmp: [[0x42, 0x4D]],
+              gif: [[0x47, 0x49, 0x46, 0x38, 0x37, 0x61], [0x47, 0x49, 0x46, 0x38, 0x39, 0x61]],
+              heic: [[0x00, 0x00, 0x00, null, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63]],
+              avif: [[0x00, 0x00, 0x00, null, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66]],
+              webp: [[0x52, 0x49, 0x46, 0x46, null, null, null, null, 0x57, 0x45, 0x42, 0x50]],
+              svg: [[0x3C, 0x73, 0x76, 0x67]],
+              ico: [[0x00, 0x00, 0x01, 0x00]],
             }
-            await DiscordNative.fileManager.saveWithDialog(new Uint8Array(arrayBuffer), url);
-            BdApi.showToast("Saved Image!", { type: 'success' });
+            loop: for (const [ext, signs] of Object.entries(FileExtension)) {
+              for (const sign of signs) {
+                if (sign.every((e, i) => e === null || e === arrayBuffer[i])) {
+                  url += '.' + ext;
+                  break loop;
+                }
+              }
+            }
+            DiscordNative.fileManager.saveWithDialog(arrayBuffer, url).then(() => {
+              BdApi.showToast("Saved Image!", { type: 'success' });
+            });
           } catch (err) {
             BdApi.showToast("Failed to save Image. " + err, { type: 'error' });
           }
@@ -587,6 +604,7 @@ module.exports = meta => {
           { name: 'AV1 (AVIF)', extensions: ['avif'] },
           { name: 'WebP', extensions: ['webp'] },
           { name: 'SVG', extensions: ['svg'] },
+          { name: 'ICO', extensions: ['ico'] },
         ]
       }).then(files => {
         if (!files.length) return;
@@ -764,6 +782,7 @@ module.exports = meta => {
             jsx(constants.nativeUI.FormSwitch, {
               hideBorder: true,
               value: setting.transition.enabled,
+              note: 'Cross-fade animation between background images.',
               onChange: newVal => {
                 setSetting(prev => ({ ...prev, transition: { ...prev.transition, enabled: newVal } }));
                 viewTransition.bgContainer().style.setProperty('--BgManager-transition-duration', (newVal ? setting.transition.duration ?? 0 : 0) + 'ms');
@@ -792,7 +811,7 @@ module.exports = meta => {
               value: setting.slideshow.enabled,
               onChange: newVal => {
                 setSetting(prev => ({ ...prev, slideshow: { ...prev.slideshow, enabled: newVal } }));
-                newVal ? slideShowManager.restart() : slideShowManager.stop();
+                newVal ? slideShowManager.start() : slideShowManager.stop();
               },
             }, 'Enable Slideshow Mode'),
             jsx(FormTextInput, {
@@ -804,7 +823,7 @@ module.exports = meta => {
               suffix: 'min',
               onChange: newVal => {
                 setSetting(prev => ({ ...prev, slideshow: { ...prev.slideshow, interval: Number(newVal) * 1000 * 60 } }));
-                slideShowManager.restart();
+                slideShowManager.start();
               },
             }),
             jsx(constants.nativeUI.FormSwitch, {
@@ -821,7 +840,7 @@ module.exports = meta => {
           children: jsx(constants.nativeUI.FormSwitch, {
             hideBorder: true,
             value: setting.enableDrop,
-            note: "When enabled, the popout will move infront of Discord's native drop area. It will also disabled the popout's focus trap to enable dragging.",
+            note: "When enabled, the popout will move infront of Discord's native drop area. It will also disable the popout's focus trap to enable dragging.",
             onChange: newVal => setSetting(prev => ({ ...prev, enableDrop: newVal })),
           }, 'Enable Drop Area')
         }),
@@ -835,7 +854,7 @@ module.exports = meta => {
               setSetting(prev => ({ ...prev, overwriteCSS: newVal }));
               newVal ? (themeObserver.start(), viewTransition.setProperty()) : themeObserver.stop();
             },
-          }, "Overwrite themes' CSS variable")
+          }, "Overwrite theme's CSS variable")
         }),
         jsx(constants.nativeUI.FormSection, {
           title: 'Context Menu',
@@ -882,7 +901,7 @@ module.exports = meta => {
     }, jsx(constants.nativeUI.TextInput, {
       ...props,
       value: val,
-      className: 'BackgroundManager-SettingsTextInput ' + (props.disabled ? constants.disabled.disabled : ''),
+      className: 'BackgroundManager-SettingsTextInput' + (props.disabled ? ' ' + constants.disabled.disabled : ''),
       onChange: handleChange,
       onBlur: handleBlur,
       onKeyDown: handleKeyDown
@@ -941,9 +960,7 @@ module.exports = meta => {
 
     return jsx('div', {
       style: {
-        display: 'grid',
-        gap: '0.5rem 1rem',
-        maxWidth: '240px',
+        display: 'grid', gap: '0.5rem 1rem', maxWidth: '240px',
         gridTemplateColumns: props.type === 'number' ? '3fr 2fr' : 'auto auto',
         cursor: props.disabled ? 'not-allowed' : null,
       },
@@ -964,7 +981,6 @@ module.exports = meta => {
               type: props.type ?? 'number',
               inputClassName: !props.type === "number" ? null : "BackgroundManager-NumberInput",
               disabled: props.disabled,
-              style: { height: '1.5rem', padding: '0.25rem', textAlign: 'right' },
               id: ID,
               onChange: handleTextChange,
               onBlur: onTextCommit,
@@ -1038,7 +1054,7 @@ module.exports = meta => {
               checked: settings.slideshow.enabled,
               action: () => setSettings(prev => {
                 prev.slideshow.enabled = !prev.slideshow.enabled;
-                prev.slideshow.enabled ? slideShowManager.restart() : slideShowManager.stop();
+                prev.slideshow.enabled ? slideShowManager.start() : slideShowManager.stop();
                 rerender(e => [...e]);
                 return prev;
               })
@@ -1060,7 +1076,7 @@ module.exports = meta => {
                     prev.slideshow.interval = Number(newVal) * 6e4;
                     return prev;
                   });
-                  if (oldValue !== newVal * 6e4) slideShowManager.restart();
+                  if (oldValue !== newVal * 6e4) slideShowManager.start();
                 },
                 suffix: " min"
               }),
@@ -1403,7 +1419,8 @@ module.exports = meta => {
   function generateCSS() {
     DOM.removeStyle(meta.slug + '-style');
     DOM.addStyle(meta.slug + '-style', `
-.BackgroundManager-NumberInput::-webkit-inner-spin-button {
+.BackgroundManager-NumberInput::-webkit-inner-spin-button,
+.BackgroundManager-SettingsTextInput input::-webkit-inner-spin-button {
     display: none;
 }
 .${constants.baseLayer.bg} {
@@ -1434,6 +1451,11 @@ module.exports = meta => {
 @keyframes fade-in {
   0% { opacity: 0; }
   100% { opacity: 1; }
+}
+.BackgroundManager-NumberInput {
+  height: 1.5rem;
+  padding: 0.25rem;
+  text-align: right;
 }
 .BackgroundManager-SettingsTextInput {
   flex-direction: row;
@@ -1711,6 +1733,7 @@ module.exports = meta => {
       { mime: 'image/avif', pattern: [0x00, 0x00, 0x00, null, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66] },
       { mime: 'image/webp', pattern: [0x52, 0x49, 0x46, 0x46, null, null, null, null, 0x57, 0x45, 0x42, 0x50] },
       { mime: 'image/svg+xml', pattern: [0x3C, 0x73, 0x76, 0x67] },
+      { mime: 'image/x-icon', pattern: [0x00, 0x00, 0x01, 0x00] },
     ];
     for (const { mime, pattern } of mimeTypes)
       if (pattern.every((e, i) => e === null || e === buffer[i]))
@@ -1719,9 +1742,7 @@ module.exports = meta => {
   }
 
   // Inits and Event Listeners
-  /**
-   * Manager to start and stop the slideshow. Internally handles the interval
-   */
+  /** Manager to start and stop the slideshow. Internally handles the interval */
   const slideShowManager = function () {
     let interval, triggeredWhileHidden = false;
 
@@ -1730,7 +1751,7 @@ module.exports = meta => {
     }
 
     function start() {
-      if (interval != null) return; // Slideshow is already running
+      stop();
       document.addEventListener("visibilitychange", handleVisibilityChange);
       interval = setInterval(() => {
         if (document.visibilityState === 'hidden') {
@@ -1785,12 +1806,7 @@ module.exports = meta => {
       triggeredWhileHidden = false;
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     }
-    function restart() {
-      stop();
-      start();
-    }
-
-    return { start, restart, stop }
+    return { start, stop }
   }();
 
   /**  Controller for switching images */
@@ -1967,7 +1983,7 @@ module.exports = meta => {
           img && viewTransition.setImage(img.src)
         });
         // Start Slideshow if enabled
-        constants.settings.slideshow.enabled && slideShowManager.restart();
+        constants.settings.slideshow.enabled && slideShowManager.start();
         constants.settings.overwriteCSS && themeObserver.start();
         addButton();
       } catch (e) {
