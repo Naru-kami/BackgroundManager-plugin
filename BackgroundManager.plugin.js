@@ -9,7 +9,7 @@
 const { React, Webpack, Webpack: { Filters }, Patcher, DOM, ContextMenu, Data } = BdApi;
 
 /** @type {typeof import("react")} */
-const { useState, useEffect, useRef, useCallback, useId, createElement: jsx, Fragment } = React;
+const { useState, useEffect, useRef, useCallback, useId, useMemo, createElement: jsx, Fragment } = React;
 
 const DATA_BASE_NAME = 'BackgroundManager';
 
@@ -43,7 +43,6 @@ module.exports = meta => {
   */
 
   // Hooks
-
   /**
    * @returns {[typeof defaultSettings, React.Dispatch<typeof defaultSettings>]}
    */
@@ -344,6 +343,81 @@ module.exports = meta => {
         return [...prev, ...uploaded];
       });
     }, [setImages]);
+    const contextMenuObj = useMemo(() => {
+      const saveAndCopy = givenItem => [{
+        label: "Copy Image",
+        action: async () => {
+          try {
+            if (givenItem.image.type === 'image/png' || givenItem.image.type === 'image/jpeg') {
+              const arrayBuffer = await givenItem.image.arrayBuffer()
+              DiscordNative.clipboard.copyImage(new Uint8Array(arrayBuffer), givenItem.src)
+            } else {
+              const imageBitmap = await createImageBitmap(givenItem.image);
+              const Canvas = new OffscreenCanvas(imageBitmap.width, imageBitmap.height);
+              const ctx = Canvas.getContext('2d');
+              ctx.drawImage(imageBitmap, 0, 0);
+              const pngBlob = await Canvas.convertToBlob({ type: 'image/png' });
+              const arrayBuffer = await pngBlob.arrayBuffer()
+              DiscordNative.clipboard.copyImage(new Uint8Array(arrayBuffer), givenItem.src)
+            }
+            BdApi.showToast("Image copied to clipboard!", { type: 'success' });
+          } catch (err) {
+            BdApi.showToast("Failed to copy Image. " + err, { type: 'error' });
+          }
+        }
+      }, {
+        label: "Save Image",
+        action: async () => {
+          try {
+            const arrayBuffer = new Uint8Array(await givenItem.image.arrayBuffer());
+            let url = (new URL(givenItem.src)).pathname.split('/').pop() || 'unknown';
+            const FileExtension = {
+              jpeg: [[0xFF, 0xD8, 0xFF, 0xEE]],
+              jpg: [[0xFF, 0xD8, 0xFF, 0xDB], [0xFF, 0xD8, 0xFF, 0xE0], [0xFF, 0xD8, 0xFF, 0xE1]],
+              png: [[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]],
+              bmp: [[0x42, 0x4D]],
+              gif: [[0x47, 0x49, 0x46, 0x38, 0x37, 0x61], [0x47, 0x49, 0x46, 0x38, 0x39, 0x61]],
+              heic: [[0x00, 0x00, 0x00, null, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63]],
+              avif: [[0x00, 0x00, 0x00, null, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66]],
+              webp: [[0x52, 0x49, 0x46, 0x46, null, null, null, null, 0x57, 0x45, 0x42, 0x50]],
+              svg: [[0x3C, 0x73, 0x76, 0x67]],
+              ico: [[0x00, 0x00, 0x01, 0x00]],
+            }
+            loop: for (const [ext, signs] of Object.entries(FileExtension)) {
+              for (const sign of signs) {
+                if (sign.every((e, i) => e === null || e === arrayBuffer[i])) {
+                  url += '.' + ext;
+                  break loop;
+                }
+              }
+            }
+            DiscordNative.fileManager.saveWithDialog(arrayBuffer, url).then(() => {
+              BdApi.showToast("Saved Image!", { type: 'success' });
+            });
+          } catch (err) {
+            BdApi.showToast("Failed to save Image. " + err, { type: 'error' });
+          }
+        }
+      }];
+      return {
+        saveAndCopy,
+        lazyCarousel: images?.length && constants.nativeUI.lazyCarousel(images.map(img => ({
+          component: jsx('img', {
+            style: { maxWidth: '85vw', maxHeight: '75vh', borderRadius: '3px' },
+            src: img.src,
+            alt: 'Image',
+            className: constants.imageModal.image,
+            onClick: e => e?.stopPropagation?.(),
+            onContextMenu: e => {
+              const ModalContextMenu = ContextMenu.buildMenu(saveAndCopy(img));
+              ContextMenu.open(e, ModalContextMenu);
+            }
+          }),
+          src: img.src
+        }))
+        )
+      }
+    }, [images])
 
     const handleDelete = useCallback(index => {
       setImages(prev => {
@@ -406,7 +480,7 @@ module.exports = meta => {
             constants.settings.slideshow.enabled && constants.settings.slideshow.shuffle && images.length >= 2 ? jsx(IconButton, {
               TooltipProps: { text: 'Next Background Image' },
               ButtonProps: {
-                style: { padding: '0', marginRight: '7px' },
+                style: { padding: '2px', marginRight: '7px' },
                 onClick: onNextShuffle,
                 className: 'BackgroundManager-nextButton ' + constants.textStyles.defaultColor,
               },
@@ -416,10 +490,11 @@ module.exports = meta => {
               }
             }) : null
           ],
-        }) : null, images.map((e, i) => {
+        }) : null, images.map(e => {
           return jsx(ImageComponent, {
             key: e.src,
             item: e,
+            contextMenuObj,
             onDelete: handleDelete,
             onSelect: handleSelect
           })
@@ -429,10 +504,10 @@ module.exports = meta => {
     )
   }
 
-  function ImageComponent({ item, onDelete, onSelect }) {
+  function ImageComponent({ item, onDelete, onSelect, contextMenuObj }) {
     const [loaded, setLoaded] = useState(false);
     const [error, setError] = useState(false);
-    const element = useRef(null);
+    const imageRef = useRef(null);
     const handleImageClick = useCallback(e => {
       e.preventDefault?.();
       e.stopPropagation?.();
@@ -449,89 +524,13 @@ module.exports = meta => {
       item.selected && viewTransition.removeImage();
     }, [onDelete, item.id, item.selected, item.src]);
     const handleContextMenu = useCallback(e => {
-      const saveAndCopy = [{
-        label: "Copy Image",
-        action: async () => {
-          try {
-            if (item.image.type === 'image/png' || item.image.type === 'image/jpeg') {
-              const arrayBuffer = await item.image.arrayBuffer()
-              DiscordNative.clipboard.copyImage(new Uint8Array(arrayBuffer), item.src)
-            } else {
-              const imageBitmap = await createImageBitmap(item.image);
-              const Canvas = new OffscreenCanvas(imageBitmap.width, imageBitmap.height);
-              const ctx = Canvas.getContext('2d');
-              ctx.drawImage(imageBitmap, 0, 0);
-              const pngBlob = await Canvas.convertToBlob({ type: 'image/png' });
-              const arrayBuffer = await pngBlob.arrayBuffer()
-              DiscordNative.clipboard.copyImage(new Uint8Array(arrayBuffer), item.src)
-            }
-            BdApi.showToast("Image copied to clipboard!", { type: 'success' });
-          } catch (err) {
-            BdApi.showToast("Failed to copy Image. " + err, { type: 'error' });
-          }
-        }
-      }, {
-        label: "Save Image",
-        action: async () => {
-          try {
-            const arrayBuffer = new Uint8Array(await item.image.arrayBuffer());
-            let url = (new URL(item.src)).pathname.split('/').pop() || 'unknown';
-            const FileExtension = {
-              jpeg: [[0xFF, 0xD8, 0xFF, 0xEE]],
-              jpg: [[0xFF, 0xD8, 0xFF, 0xDB], [0xFF, 0xD8, 0xFF, 0xE0], [0xFF, 0xD8, 0xFF, 0xE1]],
-              png: [[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]],
-              bmp: [[0x42, 0x4D]],
-              gif: [[0x47, 0x49, 0x46, 0x38, 0x37, 0x61], [0x47, 0x49, 0x46, 0x38, 0x39, 0x61]],
-              heic: [[0x00, 0x00, 0x00, null, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63]],
-              avif: [[0x00, 0x00, 0x00, null, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66]],
-              webp: [[0x52, 0x49, 0x46, 0x46, null, null, null, null, 0x57, 0x45, 0x42, 0x50]],
-              svg: [[0x3C, 0x73, 0x76, 0x67]],
-              ico: [[0x00, 0x00, 0x01, 0x00]],
-            }
-            loop: for (const [ext, signs] of Object.entries(FileExtension)) {
-              for (const sign of signs) {
-                if (sign.every((e, i) => e === null || e === arrayBuffer[i])) {
-                  url += '.' + ext;
-                  break loop;
-                }
-              }
-            }
-            DiscordNative.fileManager.saveWithDialog(arrayBuffer, url).then(() => {
-              BdApi.showToast("Saved Image!", { type: 'success' });
-            });
-          } catch (err) {
-            BdApi.showToast("Failed to save Image. " + err, { type: 'error' });
-          }
-        }
-      }]
       const ImageContextMenu = ContextMenu.buildMenu([{
         label: "View Image",
-        action: event => {
-          event.currentTarget?.blur();
-          constants.nativeUI.openModal(modalEvent => {
-            return jsx(constants.nativeUI.ModalRoot, {
-              className: constants.imageModal.modal,
-              ...modalEvent,
-              onKeyDown: e => { e.key === "Escape" && (e.stopPropagation(), constants.nativeUI.closeModal("Zoomed Lazy Image Modal", "default")) },
-              size: constants.nativeUI.ModalSize.DYNAMIC,
-              children: jsx('img', {
-                style: { maxWidth: '85vw', maxHeight: '75vh', borderRadius: '3px' },
-                src: item.src,
-                alt: 'Image',
-                className: constants.imageModal.image,
-                onContextMenu: e => {
-                  const ModalContextMenu = ContextMenu.buildMenu(saveAndCopy);
-                  ContextMenu.open(e, ModalContextMenu);
-                }
-              })
-            })
-          }, { modalKey: "Zoomed Lazy Image Modal" }, "default")
-        }
-      },
-      ...saveAndCopy
+        action: e => contextMenuObj.lazyCarousel[item.src](e)
+      }, ...contextMenuObj.saveAndCopy(item)
       ]);
       ContextMenu.open(e, ImageContextMenu)
-    }, [element.current, item.image, item.src]);
+    }, [item.image, item.src, contextMenuObj]);
 
     useEffect(() => {
       let first = true;
@@ -539,14 +538,16 @@ module.exports = meta => {
       img.src = item.src || '';
       img.onload = () => setLoaded(true);
       img.onerror = () => {
-        setLoaded(true);
         if (first) {
           URL.revokeObjectURL(item.src);
           item.src = URL.createObjectURL(item.image);
           img.src = item.src;
           first = false;
         }
-        else setError(true);
+        else {
+          setError(true);
+          setLoaded(true);
+        }
       };
     }, []);
 
@@ -557,7 +558,7 @@ module.exports = meta => {
         onContextMenu: handleContextMenu,
         children: [
           !loaded ? jsx(CircularProgress) : error ? jsx('div', null, 'Could not load image') : jsx('img', {
-            ref: element,
+            ref: imageRef,
             tabIndex: '-1',
             src: item.src || '',
             className: 'BackgroundManager-image',
@@ -1317,7 +1318,7 @@ module.exports = meta => {
     return jsx(ContextMenu.Group, null, jsx(ContextMenu.Item, {
       id: 'add-Manager',
       label: 'Add to Background Manager',
-      action: () => {
+      action: async () => {
         let mediaURL = function (src) {
           let safeURL = function (url) { try { return new URL(url) } catch (e) { return null } }(src);
           return null == safeURL || safeURL.host === "cdn.discordapp.com" ? src : safeURL.origin === "https://media.discordapp.net" ? (safeURL.host = "cdn.discordapp.com",
@@ -1331,21 +1332,16 @@ module.exports = meta => {
               safeURL.toString())
         }(src);
         try {
-          fetch(new Request(mediaURL, {
+          const response = await fetch(new Request(mediaURL, {
             method: "GET",
             mode: "cors"
-          })).then(response =>
-            response.ok ? response : Promise.reject(response.status)
-          ).then(response =>
-            response.headers.get('Content-Type').startsWith('image/') ? response.blob() : Promise.reject('Item is not an image.')
-          ).then(blob => {
-            setImageFromIDB(storedImages => {
-              storedImages.push({ image: blob, selected: false, src: null, id: storedImages.length + 1 });
-              BdApi.showToast("Successfully added to BackgroundManager", { type: 'success' });
-            })
-          }).catch(err => {
-            console.error('Status ', err)
-            BdApi.showToast("Failed to add to BackgroundManager. Status " + err, { type: 'error' });
+          }));
+          if (!response.ok) throw new Error(response.status);
+          if (!response.headers.get('Content-Type').startsWith('image/')) throw new Error('Item is not an image.');
+          const blub = await response.blob();
+          setImageFromIDB(storedImages => {
+            storedImages.push({ image: blub, selected: false, src: null, id: storedImages.length + 1 });
+            BdApi.showToast("Successfully added to BackgroundManager", { type: 'success' });
           });
         } catch (err) {
           console.error('Status ', err)
@@ -1700,10 +1696,7 @@ module.exports = meta => {
     }
 
     render() {
-      if (this.state.hasError) {
-        return this.props.fallback;
-      }
-      return this.props.children;
+      return this.state.hasError ? this.props.fallback : this.props.children;
     }
 
   }
@@ -1943,6 +1936,7 @@ module.exports = meta => {
       try {
         !Object.keys(constants).length && console.log('%c[BackgroundManager] %cInitialized', "color:#DBDCA6;font-weight:bold", "")
         const configs = Data.load(meta.slug, "settings");
+        let filter;
         Object.assign(constants, {
           toolbarClasses: Webpack.getModule(Filters.byKeys("title", "toolbar")), // classes for toolbar
           messagesPopoutClasses: Webpack.getModule(Filters.byKeys("messagesPopout")), // classes for messages popout
@@ -1955,7 +1949,10 @@ module.exports = meta => {
           scrollbar: Webpack.getModule(Filters.byKeys("thin")), // classes for scrollable content
           separator: Webpack.getModule(Filters.byKeys('scroller', 'separator')), // classes for separator
           baseLayer: Webpack.getModule(Filters.byKeys('baseLayer', 'bg')), // class of Discord's base layer
-          nativeUI: Webpack.getModule(Filters.byKeys('FormSwitch', 'FormItem')), // native ui module
+          nativeUI: {
+            ...Webpack.getModule(Filters.byKeys('FormSwitch', 'FormItem')), // native ui module
+            lazyCarousel: Object.values(Webpack.getModule(mods => Object.values(mods).some((filter = m => m instanceof Function && m.toString().includes(".MEDIA_VIEWER,") && m.toString().includes(".entries())"))))).filter(filter)[0], // Module for lazy carousel
+          },
           // DiscordNative: Webpack.getByKeys('copyImage') // copyImage, saveImage
           settings: {
             ...defaultSettings,
