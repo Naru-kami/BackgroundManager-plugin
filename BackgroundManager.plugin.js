@@ -507,7 +507,7 @@ module.exports = meta => {
   function ImageComponent({ item, onDelete, onSelect, contextMenuObj }) {
     const [loaded, setLoaded] = useState(false);
     const [error, setError] = useState(false);
-    const imageRef = useRef(null);
+    const [dimensions, setDimensions] = useState({})
     const handleImageClick = useCallback(e => {
       e.preventDefault?.();
       e.stopPropagation?.();
@@ -536,7 +536,7 @@ module.exports = meta => {
       let first = true;
       const img = new Image();
       img.src = item.src || '';
-      img.onload = () => setLoaded(true);
+      img.onload = () => { setLoaded(true); setDimensions({ width: img.width, height: img.height }) };
       img.onerror = () => {
         if (first) {
           URL.revokeObjectURL(item.src);
@@ -558,7 +558,6 @@ module.exports = meta => {
         onContextMenu: handleContextMenu,
         children: [
           !loaded ? jsx(CircularProgress) : error ? jsx('div', null, 'Could not load image') : jsx('img', {
-            ref: imageRef,
             tabIndex: '-1',
             src: item.src || '',
             className: 'BackgroundManager-image',
@@ -570,7 +569,8 @@ module.exports = meta => {
               }),
               jsx('span', {
                 className: ['BackgroundManager-imageType', constants.textStyles.defaultColor].join(' '),
-                children: item.image.type.split('/').pop().toUpperCase(),
+                ['data-dimensions']: dimensions.width && dimensions.height ? dimensions.width + 'x' + dimensions.height : item.image.type.split('/').pop().toUpperCase(),
+                ['data-mime']: item.image.type.split('/').pop().toUpperCase(),
               })
             ]
           }) : null, jsx(IconButton, {
@@ -1500,33 +1500,16 @@ module.exports = meta => {
   font-weight: 600;
   transition: opacity 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-.BackgroundManager-UploadButton {
-  color: var(--green-430);
-}
-.BackgroundManager-UploadButton:is(:hover, :focus-visible) {
-  color: var(--green-500);
-}
-.BackgroundManager-UploadButton:active {
-  color: var(--green-530);
-}
-.BackgroundManager-SettingsButton {
-  color: var(--blue-430);
-}
-.BackgroundManager-SettingsButton:is(:hover, :focus-visible) {
-  color: var(--blue-500);
-}
-.BackgroundManager-SettingsButton:active {
-  color: var(--blue-530);
-}
-.BackgroundManager-RemoveBgButton {
-  color: var(--red-430);
-}
-.BackgroundManager-RemoveBgButton:is(:hover, :focus-visible) {
-  color: var(--red-500);
-}
-.BackgroundManager-RemoveBgButton:active {
-  color: var(--red-530);
-}
+.BackgroundManager-UploadButton {color: var(--green-430); }
+.BackgroundManager-UploadButton:is(:hover, :focus-visible) { color: var(--green-500); }
+.BackgroundManager-UploadButton:active { color: var(--green-530); }
+.BackgroundManager-SettingsButton { color: var(--blue-430); }
+.BackgroundManager-SettingsButton:is(:hover, :focus-visible) { color: var(--blue-500); }
+.BackgroundManager-SettingsButton:active { color: var(--blue-530); }
+.BackgroundManager-RemoveBgButton { color: var(--red-430); }
+.BackgroundManager-RemoveBgButton:is(:hover, :focus-visible) { color: var(--red-500); }
+.BackgroundManager-RemoveBgButton:active { color: var(--red-530); }
+
 .BackgroundManager-UploadButton,
 .BackgroundManager-SettingsButton,
 .BackgroundManager-nextButton,
@@ -1589,7 +1572,14 @@ module.exports = meta => {
   right: 0.25rem;
   bottom: 0;
   letter-spacing: .7px;
-  font-size: 0.65rem;
+  opacity: 0.75;
+  font-size: 0.66rem;
+}
+.BackgroundManager-imageType::after {
+  content: attr(data-dimensions);
+}
+.BackgroundManager-imageWrapper:is(:hover, :focus-visible) .BackgroundManager-imageType::after {
+  content: attr(data-mime);
   font-family: 'gg mono';
 }
 .BackgroundManager-deleteButton {
