@@ -565,7 +565,7 @@ module.exports = meta => {
             children: [
               jsx('span', {
                 className: ['BackgroundManager-imageData', constants.textStyles.defaultColor].join(' '),
-                children: 'SIZE: ' + formatNumber(item.image.size) + 'B',
+                children: 'SIZE: ' + formatNumber(item.image.size),
               }),
               jsx('span', {
                 className: ['BackgroundManager-imageType', constants.textStyles.defaultColor].join(' '),
@@ -878,7 +878,7 @@ module.exports = meta => {
     const handleChange = useCallback(newVal => { setVal(newVal) }, [setVal]);
     const handleBlur = useCallback(() => {
       if (props.type === 'number') {
-        const clampedVal = Number(val) ? Math.max(Number(val), props.min || 0.5) : Number(lastVal.current);
+        const clampedVal = Number(val) ? Math.max(Number(val), props.min ?? Number(val)) + '' : Number(lastVal.current);
         lastVal.current = clampedVal;
         onChange(clampedVal);
         setVal(clampedVal + '');
@@ -891,11 +891,22 @@ module.exports = meta => {
         };
       }
     }, [val, onChange, lastVal.current, setVal]);
+
+    const handleWheel = useCallback(e => {
+      if (props.type === 'number' && e.deltaY)
+        setVal(newValue => { newValue = (Number(newValue.replace(',', '.')) - Math.sign(e.deltaY)).toFixed(Math.ceil(Math.abs(Math.log10(Math.abs(props.min ?? 1))))); return Math.max(Number(newValue), props.min ?? Number(newValue)) + '' });
+    }, [props.type, setVal]);
     const handleKeyDown = useCallback(e => {
-      if (e.key === 'Enter') {
-        e.target?.blur?.();
+      e.key === 'Enter' && e.target?.blur?.();
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.stopPropagation?.();
+        if (props.type === 'number' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+          e.preventDefault?.();
+          const delta = e.key === 'ArrowUp' ? 1 : -1;
+          setVal(newValue => { newValue = (Number(newValue.replace(',', '.')) + delta).toFixed(Math.ceil(Math.abs(Math.log10(Math.abs(props.min ?? 1))))); return Math.max(Number(newValue), props.min ?? Number(newValue)) + '' });
+        }
       }
-    }, [handleBlur]);
+    }, [props.type, setVal]);
 
     return jsx('div', {
       style: { display: 'grid', gridTemplateColumns: '1fr auto', width: '100%', alignItems: 'center' }
@@ -905,16 +916,15 @@ module.exports = meta => {
       className: 'BackgroundManager-SettingsTextInput' + (props.disabled ? ' ' + constants.disabled.disabled : ''),
       onChange: handleChange,
       onBlur: handleBlur,
-      onKeyDown: handleKeyDown
-    }),
-      props.type === "number" && props.suffix ? jsx('span', { style: { marginLeft: '0.25rem', marginBottom: '20px' }, className: constants.textStyles.defaultColor }, props.suffix) : null
+      onKeyDown: handleKeyDown,
+      onWheel: handleWheel,
+    }), props.type === "number" && props.suffix ? jsx('span', { style: { marginLeft: '0.25rem', marginBottom: '20px' }, className: constants.textStyles.defaultColor }, props.suffix) : null
     )
   }
 
   function MenuInput({ value, onChange, ...props }) {
     const [textValue, setTextValue] = useState(value + '');
     const [sliderValue, setSliderValue] = useState(value);
-
     const oldValue = useRef(value + '');
     const ringTarget = useRef(null);
     const ID = useId();
@@ -938,7 +948,7 @@ module.exports = meta => {
           setTextValue(oldValue.current);
         }
       } else {
-        props.type === 'number' && setTextValue(Math.max(Number(textValue), props.minValue ?? Number(textValue)));
+        props.type === 'number' && setTextValue(Math.max(Number(textValue), props.minValue ?? Number(textValue)) + '');
         setSliderValue(Math.max(Number(textValue), props.minValue ?? Number(textValue)));
         onChange(props.type === 'number' ? Math.max(Number(textValue), props.minValue ?? Number(textValue)) : textValue);
       }
@@ -947,28 +957,36 @@ module.exports = meta => {
       e.key === 'Enter' && e.target?.blur?.();
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         e.stopPropagation?.();
+        if (props.type === 'number' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+          e.preventDefault?.();
+          const delta = e.key === 'ArrowUp' ? 10 * (props.decimals ? Math.pow(10, -1 * props.decimals) : 0.1) : -10 * (props.decimals ? Math.pow(10, -1 * props.decimals) : 0.1);
+          setTextValue(val => { val = (Number(val.replace(',', '.')) + delta).toFixed(props.decimals ?? 0); return Math.max(Number(val), props.minValue ?? Number(val)) + '' });
+        }
       }
-    }, []);
+    }, [props.type, setTextValue]);
+    const handleWheel = useCallback(e => {
+      if (props.type === 'number' && e.deltaY) {
+        const delta = e.deltaY < 0 ? 10 * (props.decimals ? Math.pow(10, -1 * props.decimals) : 0.1) : -10 * (props.decimals ? Math.pow(10, -1 * props.decimals) : 0.1);
+        setTextValue(val => { val = (Number(val.replace(',', '.')) + delta).toFixed(props.decimals ?? 0); return Math.max(Number(val), props.minValue ?? Number(val)) + '' });
+      }
+    }, [props.type, setTextValue]);
     const onSliderCommit = useCallback(e => {
       if (e.type === 'mouseleave' && e.buttons !== 1) return;
       setTextValue(sliderValue + '');
       onChange(sliderValue)
     }, [onChange, setTextValue, sliderValue]);
 
-    useEffect(() => {
-      ringTarget.current?.blur();
-    }, []);
+    useEffect(() => { ringTarget.current?.blur() }, []);
 
     return jsx('div', {
       style: {
-        display: 'grid', gap: '0.5rem 1rem', maxWidth: '240px',
+        display: 'grid', gap: '0.5rem 1rem', maxWidth: '240px', cursor: props.disabled ? 'not-allowed' : null,
         gridTemplateColumns: props.type === 'number' ? '3fr 2fr' : 'auto auto',
-        cursor: props.disabled ? 'not-allowed' : null,
       },
       className: [constants.separator.item, constants.separator.labelContainer].join(' '),
       children: [
         jsx('label', {
-          for: ID,
+          htmlFor: ID,
           children: props.label,
           style: { justifySelf: 'start', cursor: props.disabled ? 'not-allowed' : null },
           className: [constants.separator.label, (props.disabled ? constants.separator.disabled : '')].join(' '),
@@ -986,6 +1004,7 @@ module.exports = meta => {
               onChange: handleTextChange,
               onBlur: onTextCommit,
               onKeyDown: handleKeyDown,
+              onWheel: handleWheel,
             }),
             props.type === 'number' && props.suffix ? jsx('span', { children: props.suffix }) : null
           ]
@@ -1033,9 +1052,7 @@ module.exports = meta => {
                 disabled: !settings.transition.enabled,
                 label: "Transition Duration",
                 value: settings.transition.duration,
-                type: 'number',
-                maxValue: 3000,
-                minValue: 0,
+                type: 'number', minValue: 0, maxValue: 3000,
                 onChange: newVal => {
                   setSettings(prev => {
                     prev.transition.duration = Number(newVal);
@@ -1054,8 +1071,7 @@ module.exports = meta => {
               type: 'toggle',
               checked: settings.slideshow.enabled,
               action: () => setSettings(prev => {
-                prev.slideshow.enabled = !prev.slideshow.enabled;
-                prev.slideshow.enabled ? slideShowManager.start() : slideShowManager.stop();
+                (prev.slideshow.enabled = !prev.slideshow.enabled) ? slideShowManager.start() : slideShowManager.stop();
                 rerender(e => [...e]);
                 return prev;
               })
@@ -1066,10 +1082,8 @@ module.exports = meta => {
                 disabled: !settings.slideshow.enabled,
                 label: "Slideshow Interval",
                 value: settings.slideshow.interval / 6e4,
-                type: 'number',
+                type: 'number', minValue: 0.5, maxValue: 120,
                 decimals: 1,
-                maxValue: 120,
-                minValue: 0.5,
                 onChange: newVal => {
                   let oldValue;
                   setSettings(prev => {
@@ -1092,9 +1106,7 @@ module.exports = meta => {
               })
             }
           ]
-        }, {
-          type: 'separator',
-        }, {
+        }, { type: 'separator', }, {
           label: "Enable Drop Area",
           type: 'toggle',
           checked: settings.enableDrop,
@@ -1107,8 +1119,7 @@ module.exports = meta => {
           type: 'toggle',
           checked: settings.overwriteCSS,
           action: () => setSettings(prev => {
-            prev.overwriteCSS = !prev.overwriteCSS;
-            prev.overwriteCSS ? (themeObserver.start(), viewTransition.setProperty()) : themeObserver.stop();
+            (prev.overwriteCSS = !prev.overwriteCSS) ? (themeObserver.start(), viewTransition.setProperty()) : themeObserver.stop();
             return prev;
           })
         }, {
@@ -1116,8 +1127,7 @@ module.exports = meta => {
           type: 'toggle',
           checked: settings.addContextMenu,
           action: () => setSettings(prev => {
-            prev.addContextMenu = !prev.addContextMenu;
-            prev.addContextMenu ? contextMenuPatcher.patch() : contextMenuPatcher.unpatch();
+            (prev.addContextMenu = !prev.addContextMenu) ? contextMenuPatcher.patch() : contextMenuPatcher.unpatch();
             return prev;
           })
         }, {
@@ -1130,10 +1140,8 @@ module.exports = meta => {
               render: () => jsx(MenuInput, {
                 label: "x-Position",
                 value: settings.adjustment.xPosition,
-                type: 'number',
+                type: 'number', minValue: -50, maxValue: 50,
                 decimals: 0,
-                minValue: -50,
-                maxValue: 50,
                 onChange: newVal => setSettings(prev => {
                   prev.adjustment.xPosition = Math.min(50, Math.max(-50, newVal));
                   return prev;
@@ -1147,10 +1155,8 @@ module.exports = meta => {
               render: () => jsx(MenuInput, {
                 label: "y-Position",
                 value: settings.adjustment.yPosition,
-                type: 'number',
+                type: 'number', minValue: -50, maxValue: 50,
                 decimals: 0,
-                minValue: -50,
-                maxValue: 50,
                 onChange: newVal => setSettings(prev => {
                   prev.adjustment.yPosition = Math.min(50, Math.max(-50, newVal));
                   return prev;
@@ -1158,21 +1164,17 @@ module.exports = meta => {
                 onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-position-y', Math.min(50, Math.max(-50, newVal)) + '%'),
                 suffix: ' %'
               }),
-            }, {
-              type: 'separator'
-            }, {
+            }, { type: 'separator' }, {
               label: 'Dimming',
               type: "custom",
               render: () => jsx(MenuInput, {
                 label: "Dimming",
                 value: settings.adjustment.dimming,
-                type: 'number',
+                type: 'number', minValue: 0, maxValue: 1,
                 decimals: 2,
-                minValue: 0,
-                maxValue: 1,
                 onChange: newVal => setSettings(prev => {
                   prev.adjustment.dimming = newVal;
-                  viewTransition.bgContainer()?.style.setProperty('--BgManager-dimming', newVal)
+                  viewTransition.bgContainer()?.style.setProperty('--BgManager-dimming', newVal);
                   return prev;
                 }),
                 onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-dimming', newVal),
@@ -1184,10 +1186,8 @@ module.exports = meta => {
               render: () => jsx(MenuInput, {
                 label: "Blur",
                 value: settings.adjustment.blur,
-                type: 'number',
+                type: 'number', minValue: 0, maxValue: 100,
                 decimals: 0,
-                minValue: 0,
-                maxValue: 100,
                 onChange: newVal => setSettings(prev => {
                   prev.adjustment.blur = Math.min(100, Math.max(0, newVal));
                   return prev;
@@ -1201,10 +1201,8 @@ module.exports = meta => {
               render: () => jsx(MenuInput, {
                 label: "Grayscale",
                 value: settings.adjustment.grayscale,
-                type: 'number',
+                type: 'number', minValue: 0, maxValue: 100,
                 decimals: 0,
-                minValue: 0,
-                maxValue: 100,
                 onChange: newVal => setSettings(prev => {
                   prev.adjustment.grayscale = Math.min(100, Math.max(0, newVal));
                   return prev;
@@ -1218,10 +1216,8 @@ module.exports = meta => {
               render: () => jsx(MenuInput, {
                 label: "Saturation",
                 value: settings.adjustment.saturate,
-                type: 'number',
+                type: 'number', minValue: 0, maxValue: 300,
                 decimals: 0,
-                minValue: 0,
-                maxValue: 300,
                 onChange: newVal => setSettings(prev => {
                   prev.adjustment.saturate = Math.min(300, Math.max(0, newVal));
                   return prev;
@@ -1235,10 +1231,8 @@ module.exports = meta => {
               render: () => jsx(MenuInput, {
                 label: "Contrast",
                 value: settings.adjustment.contrast,
-                type: 'number',
+                type: 'number', minValue: 0, maxValue: 300,
                 decimals: 0,
-                minValue: 0,
-                maxValue: 300,
                 onChange: newVal => setSettings(prev => {
                   prev.adjustment.contrast = Math.min(300, Math.max(0, newVal));
                   return prev;
@@ -1639,10 +1633,10 @@ module.exports = meta => {
    */
   function formatNumber(num) {
     const units = [
-      { value: 1099511627776, symbol: " Ti" },
-      { value: 1073741824, symbol: " Gi" },
-      { value: 1048576, symbol: " Mi" },
-      { value: 1024, symbol: " Ki" },
+      { value: 1099511627776, symbol: " TiB" },
+      { value: 1073741824, symbol: " GiB" },
+      { value: 1048576, symbol: " MiB" },
+      { value: 1024, symbol: " KiB" },
     ];
     for (const unit of units) {
       if (num >= unit.value) {
@@ -1738,20 +1732,17 @@ module.exports = meta => {
       document.addEventListener("visibilitychange", handleVisibilityChange);
       interval = setInterval(() => {
         if (document.visibilityState === 'hidden') {
-          if (triggeredWhileHidden) {
-            return;
-          } else {
-            triggeredWhileHidden = true;
-          }
+          if (triggeredWhileHidden) return;
+          else triggeredWhileHidden = true;
         }
         console.log('%c[BackgroundManager] %cSlideshow interval', "color:#DBDCA6;font-weight:bold", "", constants.settings.slideshow.interval)
         setImageFromIDB(storedImages => {
           const mounted = document.querySelector('.BackgroundManager-gridWrapper');
           const currentIndex = storedImages.reduce((p, c, i) => c.selected ? i : p, null);
           if (constants.settings.slideshow.shuffle && storedImages.length > 2) { // Shuffle only for 3 or more images
-            let x, it = 0;
+            let x, counter = 0;
             do x = Math.floor(Math.random() * storedImages.length)
-            while (x === currentIndex && it++ < 25)
+            while (x === currentIndex && counter++ < 25)
             storedImages.forEach(e => {
               if (!mounted) {
                 e.src && URL.revokeObjectURL(e.src);
@@ -1981,4 +1972,4 @@ module.exports = meta => {
     stop: stop,
     getSettingsPanel: () => jsx(BuildSettings)
   }
-};
+}
