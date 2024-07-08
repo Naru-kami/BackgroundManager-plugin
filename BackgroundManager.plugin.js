@@ -513,16 +513,11 @@ module.exports = meta => {
     const [error, setError] = useState(false);
     const [dimensions, setDimensions] = useState({})
     const handleImageClick = useCallback(e => {
-      e.preventDefault?.();
-      e.stopPropagation?.();
-      e.stopImmediatePropagation?.();
       onSelect(item.id);
       viewTransition.setImage(item.src);
     }, [onSelect, item.id, item.src]);
     const handleDelete = useCallback(e => {
-      e.preventDefault?.();
       e.stopPropagation?.();
-      e.stopImmediatePropagation?.();
       URL.revokeObjectURL(item.src);
       onDelete(item.id);
       item.selected && viewTransition.removeImage();
@@ -557,7 +552,7 @@ module.exports = meta => {
 
     return jsx(constants.nativeUI.FocusRing, null,
       jsx('button', {
-        className: 'BackgroundManager-imageWrapper ' + constants.textStyles.defaultColor + (item.selected ? ' selected' : ''),
+        className: 'BackgroundManager-imageWrapper ' + (item.selected ? ' selected' : ''),
         onClick: handleImageClick,
         onContextMenu: handleContextMenu,
         children: [
@@ -567,13 +562,10 @@ module.exports = meta => {
             className: 'BackgroundManager-image',
           }), !error ? jsx(Fragment, {
             children: [
-              jsx('span', {
-                className: ['BackgroundManager-imageData', constants.textStyles.defaultColor].join(' '),
-                children: 'SIZE: ' + formatNumber(item.image.size),
-              }),
-              jsx('span', {
-                className: ['BackgroundManager-imageType', constants.textStyles.defaultColor].join(' '),
-                ['data-dimensions']: dimensions.width && dimensions.height ? dimensions.width + 'x' + dimensions.height : item.image.type.split('/').pop().toUpperCase(),
+              jsx('div', {
+                className: 'BackgroundManager-imageData',
+                ['data-size']: formatNumber(item.image.size),
+                ['data-dimensions']: dimensions.width && dimensions.height ? dimensions.width + ' x ' + dimensions.height : item.image.type.split('/').pop().toUpperCase(),
                 ['data-mime']: item.image.type.split('/').pop().toUpperCase(),
               })
             ]
@@ -1526,9 +1518,8 @@ module.exports = meta => {
   position: relative;
   border-radius: .25rem;
   background-color: #0000;
-  flex: 0 0 calc(50% - 0.25rem);
+  flex: 1 0 calc(50% - 0.25rem);
   aspect-ratio: 16 / 9;
-  isolation: isolate;
   outline: 2px solid transparent;
   padding: 0;
   overflow: hidden;
@@ -1538,12 +1529,6 @@ module.exports = meta => {
   outline-color: var(--blue-430,currentColor);
 }
 .BackgroundManager-image {
-  font-style: italic;
-  font-size: .75rem;
-  background-repeat: no-repeat;
-  background-size: cover;
-  height: auto;
-  display: block;
   object-fit: cover;
   min-height: 100%;
   min-width: 100%;
@@ -1555,35 +1540,28 @@ module.exports = meta => {
 }
 .BackgroundManager-imageData {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: auto 0 0;
+  display: flex;
+  justify-content: space-between;
   padding: 0.25rem 0.25rem 0;
-  font-size: .7rem;
-  text-align: start;
-  overflow: hidden;
+  font-size: .75rem;
+  color: rgba(255, 255, 255, 0.6667);
   background: linear-gradient(#0000, rgba(25, 25, 25, 0.8) .175rem) no-repeat;
 }
-.BackgroundManager-imageType {
-  position: absolute;
-  right: 0.25rem;
-  bottom: 0;
-  letter-spacing: .7px;
-  opacity: 0.75;
-  font-size: 0.66rem;
+.BackgroundManager-imageData::before {
+  content: 'SIZE: 'attr(data-size)'';
 }
-.BackgroundManager-imageType::after {
+.BackgroundManager-imageData::after {
   content: attr(data-dimensions);
 }
-.BackgroundManager-imageWrapper:is(:hover, :focus-visible) .BackgroundManager-imageType::after {
+.BackgroundManager-imageWrapper:is(:hover, :focus-visible, :focus-within) .BackgroundManager-imageData::after {
   content: attr(data-mime);
   font-family: 'gg mono';
 }
 .BackgroundManager-deleteButton {
   display: flex;
   position: absolute;
-  top: 3px;
-  right: 3px;
+  inset: 3px 3px auto auto;
   border-radius: 4px;
   border: 0;
   padding: 1px;
