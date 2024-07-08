@@ -228,14 +228,14 @@ module.exports = meta => {
     const handleKeyDown = useCallback(e => {
       props.onKeyDown?.(e);
       if (e.key === 'Enter' || e.key === ' ') onClick();
-    }, [onClick, props.onKeyDown])
+    }, [onClick, props.onKeyDown]);
     return jsx(IconButton, {
       TooltipProps: { text: 'Background Manager', position: 'bottom', shouldShow: props.showTooltip },
       ButtonProps: {
         ...props,
-        onKeyDown: handleKeyDown,
         component: 'div',
         tabIndex: '0',
+        onKeyDown: handleKeyDown,
         onClick: onClick,
         className: [constants.toolbarClasses.iconWrapper, !props.showTooltip ? constants.toolbarClasses.selected : undefined, constants.toolbarClasses.clickable].join(' '),
       },
@@ -258,7 +258,6 @@ module.exports = meta => {
         layerContainer?.style.setProperty('z-index', '2002');
       }
       onResize();
-      mainComponent.current.focus();
       window.addEventListener('resize', onResize);
       constants.settings.enableDrop && window.addEventListener('mousedown', handleMouseDown, true);
       constants.settings.enableDrop && window.addEventListener('mouseup', handleMouseUp, true);
@@ -457,9 +456,7 @@ module.exports = meta => {
       className: [constants.messagesPopoutClasses.messageGroupWrapper, constants.markupStyles.markup, constants.messagesPopoutClasses.messagesPopout].join(' '),
       style: { display: "grid", 'grid-template-rows': 'auto auto 1fr' },
     },
-      jsx(ErrorBoundary, {
-        fallback: 'Internal Component Error. Background Manager crashed.'
-      },
+      jsx(ErrorBoundary, { fallback: 'Internal Component Error. Background Manager crashed.' },
         jsx(InputComponent, {
           onDrop: handleDrop,
           onPaste: handlePaste,
@@ -507,13 +504,13 @@ module.exports = meta => {
   function ImageComponent({ item, onDelete, onSelect, contextMenuObj }) {
     const [loaded, setLoaded] = useState(false);
     const [error, setError] = useState(false);
-    const [dimensions, setDimensions] = useState({})
-    const handleImageClick = useCallback(e => {
+    const [dimensions, setDimensions] = useState({});
+    const handleImageClick = useCallback(() => {
       onSelect(item.id);
       viewTransition.setImage(item.src);
     }, [onSelect, item.id, item.src]);
     const handleDelete = useCallback(e => {
-      e.stopPropagation?.();
+      e.stopPropagation();
       URL.revokeObjectURL(item.src);
       onDelete(item.id);
       item.selected && viewTransition.removeImage();
@@ -560,9 +557,9 @@ module.exports = meta => {
             children: [
               jsx('div', {
                 className: 'BackgroundManager-imageData',
-                ['data-size']: formatNumber(item.image.size),
-                ['data-dimensions']: dimensions.width && dimensions.height ? dimensions.width + ' x ' + dimensions.height : item.image.type.split('/').pop().toUpperCase(),
-                ['data-mime']: item.image.type.split('/').pop().toUpperCase(),
+                'data-size': formatNumber(item.image.size),
+                'data-dimensions': dimensions.width && dimensions.height ? dimensions.width + ' x ' + dimensions.height : item.image.type.split('/').pop().toUpperCase(),
+                'data-mime': item.image.type.split('/').pop().toUpperCase(),
               })
             ]
           }) : null, jsx(IconButton, {
@@ -650,10 +647,12 @@ module.exports = meta => {
       });
     }, [onPaste, setProcessing]);
 
+    useEffect(() => { dropArea.current.focus() }, []);
+
     return jsx('div', {
       className: 'BackgroundManager-inputWrapper',
       children: [
-        jsx('div', {
+        jsx(constants.nativeUI.FocusRing, null, jsx('div', {
           className: 'BackgroundManager-DropAndPasteArea',
           contentEditable: 'true',
           ref: dropArea,
@@ -665,21 +664,17 @@ module.exports = meta => {
           onDragEnd: handleDragEnd,
           onDragLeave: handleDragEnd,
           children: processing.length ? jsx(CircularProgress, {
-            style: { position: 'absolute', width: '1.5rem', height: '1.5rem', top: '1rem', right: '1rem', borderRadius: '50%', backgroundColor: 'rgba(0,0,0,0.5)' },
-            loaderProps: {
-              style: { height: '100%' }
-            }
+            style: { position: 'absolute', width: '2rem', height: '2rem', top: '1rem', right: '1rem', borderRadius: '50%', backgroundColor: 'rgba(0,0,0,0.5)' },
+            loaderProps: { style: { height: '100%' } }
           }) : null
-        }),
+        })),
         jsx(IconButton, {
           TooltipProps: { text: 'Open Images' },
           ButtonProps: {
             className: 'BackgroundManager-UploadButton',
             onClick: handleUpload,
           },
-          SvgProps: {
-            path: 'M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2m0 12H4V6h5.17l2 2H20zM9.41 14.42 11 12.84V17h2v-4.16l1.59 1.59L16 13.01 12.01 9 8 13.01z'
-          }
+          SvgProps: { path: 'M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2m0 12H4V6h5.17l2 2H20zM9.41 14.42 11 12.84V17h2v-4.16l1.59 1.59L16 13.01 12.01 9 8 13.01z' }
         }),
         jsx(InPopoutSettings, { rerender }),
         jsx(IconButton, {
@@ -688,9 +683,7 @@ module.exports = meta => {
             className: 'BackgroundManager-RemoveBgButton',
             onClick: onRemove,
           },
-          SvgProps: {
-            path: 'M22 8h-8v-2h8v2zM19 10H12V5H5c-1.1 0 -2 0.9 -2 2v12c 0 1.1 0.9 2 2 2h12c1.1 0 2 -0.9 2 -2zM5 19l3 -4l2 3l3 -4l4 5H5z'
-          }
+          SvgProps: { path: 'M22 8h-8v-2h8v2zM19 10H12V5H5c-1.1 0 -2 0.9 -2 2v12c 0 1.1 0.9 2 2 2h12c1.1 0 2 -0.9 2 -2zM5 19l3 -4l2 3l3 -4l4 5H5z' }
         })
       ]
     })
@@ -733,13 +726,10 @@ module.exports = meta => {
       color: 'primary',
       hideOnClick: true,
       ...TooltipProps,
-    }, prop => jsx(constants.nativeUI.FocusRing, null,
+    }, ({ onContextMenu, ...restProp }) => jsx(constants.nativeUI.FocusRing, null,
       jsx(constants.nativeUI.FocusRing, null,
         jsx(component, {
-          onMouseEnter: prop.onMouseEnter,
-          onMouseLeave: prop.onMouseLeave,
-          onFocus: prop.onFocus,
-          onBlur: prop.onBlur,
+          ...restProp,
           ...buttonRestProps,
         }, jsx('svg', {
           x: '0', y: '0',
@@ -1461,28 +1451,25 @@ module.exports = meta => {
   outline: 2px dashed var(--blue-430, currentColor);
   outline-offset: -8px;
   grid-row: span 3;
-  cursor: copy;
   caret-color: transparent;
-  box-shadow: inset 0px 0px 16px 2px transparent;
   background: url( "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23333' d='M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z'/%3E%3C/svg%3E" ) center / contain no-repeat rgba(0, 0, 0, 0.5);
-  transition: box-shadow 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .BackgroundManager-DropAndPasteArea:is(:focus, .dragging, :focus-visible)::after {
   opacity: 1;
-}
-.BackgroundManager-DropAndPasteArea:is(:focus, .dragging, :focus-visible) {
-  box-shadow: inset 0px 0px 16px 2px currentColor;
 }
 .BackgroundManager-DropAndPasteArea::after {
   content: 'Drop or Paste Image Here';
   position: absolute;
   display: grid;
   place-items: center;
-  inset: 0;
+  inset: -2px;
   opacity: 0;
-  cursor: inherit;
+  border: inherit;
+  border-radius: inherit;
+  cursor: copy;
   font-size: 1.5rem;
   font-weight: 600;
+  box-shadow: inset 0px 0px 16px 2px currentColor;
   transition: opacity 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .BackgroundManager-UploadButton {color: var(--green-430); }
@@ -1910,8 +1897,7 @@ module.exports = meta => {
           nativeUI: {
             ...Webpack.getModule(Filters.byKeys('FormSwitch', 'FormItem')), // native ui module
             lazyCarousel: Object.values(Webpack.getModule(mods => Object.values(mods).some((filter = m => m instanceof Function && m.toString().includes(".MEDIA_VIEWER,") && m.toString().includes(".entries())"))))).filter(filter)[0], // Module for lazy carousel
-          },
-          // DiscordNative: Webpack.getByKeys('copyImage') // copyImage, saveImage
+          }, // DiscordNative: Webpack.getByKeys('copyImage') // copyImage, saveImage
           settings: {
             ...defaultSettings,
             ...configs,
