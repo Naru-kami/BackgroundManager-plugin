@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 1.2.0
+ * @version 1.2.1
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -269,8 +269,9 @@ module.exports = meta => {
         window.removeEventListener('mouseup', handleMouseUp, true);
       }
     }, []);
+    !constants.settings.enableDrop && constants.nativeUI.useFocusLock(mainComponent);
 
-    const popout = jsx('div', {
+    return jsx('div', {
       ref: mainComponent,
       role: "dialog",
       tabIndex: "-1",
@@ -279,11 +280,6 @@ module.exports = meta => {
     }, jsx(ManagerHead),
       jsx(ManagerBody)
     )
-
-    return !constants.settings.enableDrop ? jsx(constants.nativeUI.FocusLock, {
-      containerRef: mainComponent,
-      children: popout
-    }) : popout
   }
 
   function ManagerHead() {
