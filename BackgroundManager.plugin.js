@@ -249,10 +249,10 @@ module.exports = meta => {
   function ManagerComponent() {
     const mainComponent = useRef(null);
     useEffect(() => {
-      function onResize() {
-        mainComponent.current.style.maxHeight = window.innerHeight - 88 + 'px';
-      }
-      let layerContainer = null;
+      let layerContainer = null, mouseDownOnPopout = false;
+      const onResize = () => mainComponent.current.style.maxHeight = window.innerHeight - 88 + 'px';
+      const handleMouseDown = e => mouseDownOnPopout = mainComponent.current.contains(e.target);
+      const handleMouseUp = e => (mouseDownOnPopout || mainComponent.current.contains(e.target)) && e.stopPropagation();
       if (constants.settings.enableDrop) {
         layerContainer = reverseQuerySelector(mainComponent.current, '.' + constants.layerContainerClass.layerContainer);
         layerContainer?.style.setProperty('z-index', '2002');
@@ -260,9 +260,13 @@ module.exports = meta => {
       onResize();
       mainComponent.current.focus();
       window.addEventListener('resize', onResize);
+      constants.settings.enableDrop && window.addEventListener('mousedown', handleMouseDown, true);
+      constants.settings.enableDrop && window.addEventListener('mouseup', handleMouseUp, true);
       return () => {
         layerContainer?.style.removeProperty('z-index');
         window.removeEventListener('resize', onResize);
+        window.removeEventListener('mousedown', handleMouseDown, true);
+        window.removeEventListener('mouseup', handleMouseUp, true);
       }
     }, []);
 
@@ -476,7 +480,7 @@ module.exports = meta => {
           style: { width: '100%', display: 'flex', justifyContent: 'space-between' },
           className: constants.textStyles['text-sm/semibold'],
           children: [
-            'Total size in memory: ' + formatNumber(images.reduce((p, c) => p + c.image.size, 0)) + 'B',
+            'Total size in memory: ' + formatNumber(images.reduce((p, c) => p + c.image.size, 0)),
             constants.settings.slideshow.enabled && constants.settings.slideshow.shuffle && images.length >= 2 ? jsx(IconButton, {
               TooltipProps: { text: 'Next Background Image' },
               ButtonProps: {
@@ -721,12 +725,11 @@ module.exports = meta => {
       onRequestClose: () => setOpen(false),
       renderPopout: () => jsx(ManagerComponent),
       children: (e, t) => {
-        let { isShown: open } = t;
         return jsx(IconComponent, {
           ...e,
           id: meta.slug,
           onClick: handleClick,
-          showTooltip: !open
+          showTooltip: !t.isShown,
         })
       }
     })
@@ -1784,7 +1787,7 @@ module.exports = meta => {
   }();
 
   /**  Controller for switching images */
-  const viewTransition = (function () {
+  const viewTransition = function () {
     let bgContainer, activeIndex = 0, domBG = [], property, originalBackground = true;
     function create() {
       bgContainer = document.createElement('div');
@@ -1893,7 +1896,7 @@ module.exports = meta => {
       });
     }
     return { create, setImage, removeImage, destroy, bgContainer: () => bgContainer, setProperty }
-  })();
+  }();
 
   const themeObserver = function () {
     let nodeObserver;
