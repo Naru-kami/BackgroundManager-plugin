@@ -67,7 +67,7 @@ module.exports = meta => {
    */
   function openDB(storeName) {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DATA_BASE_NAME, 2);
+      const request = indexedDB.open(DATA_BASE_NAME);
       // indexedDB.deleteDatabase('DATA_BASE_NAME') to remove whole database
 
       request.onupgradeneeded = event => {
@@ -444,7 +444,7 @@ module.exports = meta => {
     const onNextShuffle = useCallback(() => {
       const currentIndex = images.reduce((p, c, i) => c.selected ? i : p, null);
       let x, it = 0;
-      do x = Math.floor(Math.random() * images.length)
+      do x = constants.settings.slideshow.shuffle || currentIndex === null ? Math.floor(Math.random() * images.length) : (currentIndex + 1) % images.length
       while (x === currentIndex && it++ < 25)
       const item = images[x];
       handleSelect(item.id);
@@ -474,7 +474,7 @@ module.exports = meta => {
           className: constants.textStyles['text-sm/semibold'],
           children: [
             'Total size in memory: ' + formatNumber(images.reduce((p, c) => p + c.image.size, 0)),
-            constants.settings.slideshow.enabled && constants.settings.slideshow.shuffle && images.length >= 2 ? jsx(IconButton, {
+            constants.settings.slideshow.enabled && images.length >= 2 ? jsx(IconButton, {
               TooltipProps: { text: 'Next Background Image' },
               ButtonProps: {
                 style: { padding: '2px', marginRight: '7px' },
@@ -1082,7 +1082,6 @@ module.exports = meta => {
               checked: settings.slideshow.shuffle,
               action: () => setSettings(prev => {
                 prev.slideshow.shuffle = !prev.slideshow.shuffle;
-                rerender(e => [...e]);
                 return prev;
               })
             }
