@@ -454,7 +454,7 @@ module.exports = meta => {
 
     return jsx('div', {
       className: [constants.messagesPopoutClasses.messageGroupWrapper, constants.markupStyles.markup, constants.messagesPopoutClasses.messagesPopout].join(' '),
-      style: { display: "grid", 'grid-template-rows': 'auto auto 1fr' },
+      style: { display: "grid", gridTemplateRows: 'auto auto 1fr', overflow: 'hidden', border: '0' },
     },
       jsx(ErrorBoundary, { fallback: 'Internal Component Error. Background Manager crashed.' },
         jsx(InputComponent, {
@@ -545,11 +545,11 @@ module.exports = meta => {
 
     return jsx(constants.nativeUI.FocusRing, null,
       jsx('button', {
-        className: 'BackgroundManager-imageWrapper ' + (item.selected ? ' selected' : ''),
+        className: 'BackgroundManager-imageWrapper' + (item.selected ? ' selected' : ''),
         onClick: handleImageClick,
         onContextMenu: handleContextMenu,
         children: [
-          !loaded ? jsx(CircularProgress) : error ? jsx('div', null, 'Could not load image') : jsx('img', {
+          !loaded ? jsx(CircularProgress) : error ? jsx('div', { className: constants.textStyles.defaultColor }, 'Could not load image') : jsx('img', {
             tabIndex: '-1',
             src: item.src || '',
             className: 'BackgroundManager-image',
@@ -558,8 +558,8 @@ module.exports = meta => {
               jsx('div', {
                 className: 'BackgroundManager-imageData',
                 'data-size': formatNumber(item.image.size),
-                'data-dimensions': dimensions.width && dimensions.height ? dimensions.width + ' x ' + dimensions.height : item.image.type.split('/').pop().toUpperCase(),
-                'data-mime': item.image.type.split('/').pop().toUpperCase(),
+                'data-dimensions': dimensions.width && dimensions.height ? dimensions.width + ' x ' + dimensions.height : null,
+                'data-mime': item.image.type?.split('/').pop().toUpperCase() || null,
               })
             ]
           }) : null, jsx(IconButton, {
@@ -586,7 +586,7 @@ module.exports = meta => {
       DiscordNative.fileManager.openFiles({
         properties: ['openFile', 'multiSelections'],
         filters: [
-          { name: 'All images', extensions: ['png', 'jpg', 'jpeg', 'jpe', 'jfif', 'exif', 'bmp', 'dib', 'rle', 'gif', 'avif', 'webp', 'svg'] },
+          { name: 'All images', extensions: ['png', 'jpg', 'jpeg', 'jpe', 'jfif', 'exif', 'bmp', 'dib', 'rle', 'gif', 'avif', 'webp', 'svg', 'ico'] },
           { name: 'PNG', extensions: ['png'] },
           { name: 'JPEG', extensions: ['jpg', 'jpeg', 'jpe', 'jfif', 'exif'] },
           { name: 'BMP', extensions: ['bmp', 'dib', 'rle'] },
@@ -600,7 +600,7 @@ module.exports = meta => {
         if (!files.length) return;
         const toPush = [];
         files.forEach((file, i) => {
-          if (!file.data || !['png', 'jpg', 'jpeg', 'jpe', 'jfif', 'exif', 'bmp', 'dib', 'rle', 'gif', 'avif', 'webp', 'svg'].includes(file.filename?.split('.').pop()?.toLowerCase())) {
+          if (!file.data || !['png', 'jpg', 'jpeg', 'jpe', 'jfif', 'exif', 'bmp', 'dib', 'rle', 'gif', 'avif', 'webp', 'svg', 'ico'].includes(file.filename?.split('.').pop()?.toLowerCase())) {
             console.warn('Could not upload ' + file.filename + '. Data is empty, or ' + file.filename + ' is not an image.')
             BdApi.showToast('Could not upload ' + file.filename + '. Data is empty, or ' + file.filename + ' is not an image.', { type: 'error' });
             return;
@@ -1534,10 +1534,11 @@ module.exports = meta => {
 .BackgroundManager-imageData::before {
   content: 'SIZE: 'attr(data-size)'';
 }
-.BackgroundManager-imageData::after {
+.BackgroundManager-imageData[data-dimensions]::after {
   content: attr(data-dimensions);
 }
-.BackgroundManager-imageWrapper:is(:hover, :focus-visible, :focus-within) .BackgroundManager-imageData::after {
+.BackgroundManager-imageWrapper:is(:hover, :focus-visible, :focus-within) .BackgroundManager-imageData[data-mime]::after,
+.BackgroundManager-imageData[data-mime]:not([data-dimensions])::after {
   content: attr(data-mime);
   font-family: 'gg mono';
 }
