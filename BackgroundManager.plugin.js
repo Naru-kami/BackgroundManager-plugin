@@ -467,10 +467,8 @@ module.exports = meta => {
           role: 'separator',
           className: constants.separator.separator,
           style: { marginRight: '0.75rem' }
-        }), jsx('div', {
-          className: ['BackgroundManager-gridWrapper', constants.scrollbar.thin].join(' '),
-        }, images.reduce((p, c) => p + c.image.size, 0) ? jsx('div', {
-          style: { width: '100%', display: 'flex', justifyContent: 'space-between' },
+        }), images.length ? jsx('div', {
+          style: { paddingInline: '0.25rem 0.75rem', display: 'flex', justifyContent: 'space-between' },
           className: constants.textStyles['text-sm/semibold'],
           children: [
             'Total size in memory: ' + formatNumber(images.reduce((p, c) => p + c.image.size, 0)),
@@ -487,7 +485,9 @@ module.exports = meta => {
               }
             }) : null
           ],
-        }) : null, images.map(e => {
+        }) : null, jsx('div', {
+          className: ['BackgroundManager-gridWrapper', constants.scrollbar.thin].join(' '),
+        }, images.map(e => {
           return jsx(ImageComponent, {
             key: e.src,
             item: e,
@@ -966,7 +966,7 @@ module.exports = meta => {
         jsx('label', {
           htmlFor: ID,
           children: props.label,
-          style: { justifySelf: 'start', cursor: props.disabled ? 'not-allowed' : null },
+          style: { justifySelf: 'start', cursor: props.disabled ? 'not-allowed' : 'inherit' },
           className: [constants.separator.label, (props.disabled ? constants.separator.disabled : '')].join(' '),
         }),
         jsx('div', {
@@ -1119,6 +1119,7 @@ module.exports = meta => {
                 decimals: 0,
                 onChange: newVal => setSettings(prev => {
                   prev.adjustment.xPosition = Math.min(50, Math.max(-50, newVal));
+                  viewTransition.bgContainer()?.style.setProperty('--BgManager-position-x', Math.min(50, Math.max(-50, newVal)) + '%')
                   return prev;
                 }),
                 onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-position-x', Math.min(50, Math.max(-50, newVal)) + '%'),
@@ -1134,6 +1135,7 @@ module.exports = meta => {
                 decimals: 0,
                 onChange: newVal => setSettings(prev => {
                   prev.adjustment.yPosition = Math.min(50, Math.max(-50, newVal));
+                  viewTransition.bgContainer()?.style.setProperty('--BgManager-position-y', Math.min(50, Math.max(-50, newVal)) + '%')
                   return prev;
                 }),
                 onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-position-y', Math.min(50, Math.max(-50, newVal)) + '%'),
@@ -1165,6 +1167,7 @@ module.exports = meta => {
                 decimals: 0,
                 onChange: newVal => setSettings(prev => {
                   prev.adjustment.blur = Math.min(100, Math.max(0, newVal));
+                  viewTransition.bgContainer()?.style.setProperty('--BgManager-blur', Math.min(100, Math.max(0, newVal)) + 'px')
                   return prev;
                 }),
                 onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-blur', Math.min(100, Math.max(0, newVal)) + 'px'),
@@ -1180,6 +1183,7 @@ module.exports = meta => {
                 decimals: 0,
                 onChange: newVal => setSettings(prev => {
                   prev.adjustment.grayscale = Math.min(100, Math.max(0, newVal));
+                  viewTransition.bgContainer()?.style.setProperty('--BgManager-grayscale', Math.min(100, Math.max(0, newVal)) + '%')
                   return prev;
                 }),
                 onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-grayscale', Math.min(100, Math.max(0, newVal)) + '%'),
@@ -1195,6 +1199,7 @@ module.exports = meta => {
                 decimals: 0,
                 onChange: newVal => setSettings(prev => {
                   prev.adjustment.saturate = Math.min(300, Math.max(0, newVal));
+                  viewTransition.bgContainer()?.style.setProperty('--BgManager-saturation', Math.min(300, Math.max(0, newVal)) + '%')
                   return prev;
                 }),
                 onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-saturation', Math.min(300, Math.max(0, newVal)) + '%'),
@@ -1210,6 +1215,7 @@ module.exports = meta => {
                 decimals: 0,
                 onChange: newVal => setSettings(prev => {
                   prev.adjustment.contrast = Math.min(300, Math.max(0, newVal));
+                  viewTransition.bgContainer()?.style.setProperty('--BgManager-contrast', Math.min(300, Math.max(0, newVal)) + '%')
                   return prev;
                 }),
                 onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-contrast', Math.min(300, Math.max(0, newVal)) + '%'),
