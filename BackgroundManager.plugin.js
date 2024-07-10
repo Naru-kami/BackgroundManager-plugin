@@ -1343,12 +1343,11 @@ module.exports = meta => {
       contextMenuPatcher.patch();
     }
     // Get headerbar
-    const filter = module => module?.Icon && module.Title,
-      modules = Webpack.getModules(m => Object.values(m).some(filter));
-    for (const module of modules) {
-      const HeaderBar = [module, Object.keys(module).find(key => filter(module[key]))];
-      patchToolbar(HeaderBar);
-    }
+    const filter = module => module?.Icon && module.Title && module.toString().includes('section');
+    const headerModule = Webpack.getModule(m => Object.values(m).some(filter));
+    const HeaderBar = [headerModule, Object.keys(headerModule).find(key => filter(headerModule[key]))];
+
+    patchToolbar(HeaderBar);
     forceRerenderToolbar();
   }
 
@@ -1911,7 +1910,7 @@ module.exports = meta => {
       try {
         !Object.keys(constants).length && console.log('%c[BackgroundManager] %cInitialized', "color:#DBDCA6;font-weight:bold", "")
         const configs = Data.load(meta.slug, "settings");
-        let filter;
+        let filter = m => m instanceof Function && m.toString().includes(".MEDIA_VIEWER,") && m.toString().includes(".entries())");
         Object.assign(constants, {
           toolbarClasses: Webpack.getModule(Filters.byKeys("title", "toolbar")), // classes for toolbar
           messagesPopoutClasses: Webpack.getModule(Filters.byKeys("messagesPopout")), // classes for messages popout
@@ -1926,7 +1925,7 @@ module.exports = meta => {
           baseLayer: Webpack.getModule(Filters.byKeys('baseLayer', 'bg')), // class of Discord's base layer
           nativeUI: {
             ...Webpack.getModule(Filters.byKeys('FormSwitch', 'FormItem')), // native ui module
-            lazyCarousel: Object.values(Webpack.getModule(mods => Object.values(mods).some((filter = m => m instanceof Function && m.toString().includes(".MEDIA_VIEWER,") && m.toString().includes(".entries())"))))).filter(filter)[0], // Module for lazy carousel
+            lazyCarousel: Object.values(Webpack.getModule(mods => Object.values(mods).some(filter))).filter(filter)[0], // Module for lazy carousel
           }, // DiscordNative: Webpack.getByKeys('copyImage') // copyImage, saveImage
           settings: {
             ...defaultSettings,
