@@ -907,7 +907,6 @@ module.exports = meta => {
     const [textValue, setTextValue] = useState(value + '');
     const [sliderValue, setSliderValue] = useState(value);
     const oldValue = useRef(value + '');
-    const ringTarget = useRef(null);
     const ID = useId();
 
     const handleTextChange = useCallback(newValue => {
@@ -957,8 +956,6 @@ module.exports = meta => {
       onChange(sliderValue)
     }, [onChange, setTextValue, sliderValue]);
 
-    useEffect(() => { ringTarget.current?.blur() }, []);
-
     return jsx('div', {
       style: {
         display: 'grid', gap: '0.5rem 1rem', maxWidth: '240px', cursor: props.disabled ? 'not-allowed' : null,
@@ -977,7 +974,6 @@ module.exports = meta => {
           children: [
             jsx(constants.nativeUI.TextInput, {
               value: textValue,
-              inputRef: ringTarget,
               type: props.type ?? 'number',
               inputClassName: !props.type === "number" ? null : "BackgroundManager-NumberInput",
               disabled: props.disabled,
@@ -1012,38 +1008,37 @@ module.exports = meta => {
     const [settings, setSettings] = useSettings();
     const handleClick = useCallback(e => {
       const MyContextMenu = ContextMenu.buildMenu([
-        {
-          type: 'group',
-          items: [
-            {
-              label: "Enable Transition",
-              type: 'toggle',
-              checked: settings.transition.enabled,
-              action: () => {
-                setSettings(prev => {
-                  prev.transition.enabled = !prev.transition.enabled;
-                  return prev;
-                });
-                viewTransition.bgContainer().style.setProperty('--BgManager-transition-duration', (settings.transition.enabled ? settings.transition.duration ?? 0 : 0) + 'ms');
-              }
-            }, {
-              label: "Transition Duration",
-              type: "custom",
-              render: () => jsx(MenuInput, {
-                disabled: !settings.transition.enabled,
-                label: "Transition Duration",
-                value: settings.transition.duration,
-                type: 'number', minValue: 0, maxValue: 3000,
-                onChange: newVal => {
-                  setSettings(prev => {
-                    prev.transition.duration = Number(newVal);
-                    return prev;
-                  });
-                  viewTransition.bgContainer().style.setProperty('--BgManager-transition-duration', (settings.transition.enabled ? Number(newVal) ?? 0 : 0) + 'ms');
-                },
-                suffix: " ms"
-              }),
-            }]
+        { // Phantom input (inert and hidden), since Discord changed the focus behaviour for inputs inside context menus. Without it, submenus won't open...
+          label: 'Phantom', type: 'custom',
+          render: () => jsx('input', { ref: node => { node?.setAttribute('inert', ''); node?.setAttribute('hidden', '') }, autoFocus: true })
+        }, {
+          label: "Enable Transition",
+          type: 'toggle',
+          checked: settings.transition.enabled,
+          action: () => {
+            setSettings(prev => {
+              prev.transition.enabled = !prev.transition.enabled;
+              return prev;
+            });
+            viewTransition.bgContainer().style.setProperty('--BgManager-transition-duration', (settings.transition.enabled ? settings.transition.duration ?? 0 : 0) + 'ms');
+          }
+        }, {
+          label: "Transition Duration",
+          type: "custom",
+          render: () => jsx(MenuInput, {
+            disabled: !settings.transition.enabled,
+            label: "Transition Duration",
+            value: settings.transition.duration,
+            type: 'number', minValue: 0, maxValue: 3000,
+            onChange: newVal => {
+              setSettings(prev => {
+                prev.transition.duration = Number(newVal);
+                return prev;
+              });
+              viewTransition.bgContainer().style.setProperty('--BgManager-transition-duration', (settings.transition.enabled ? Number(newVal) ?? 0 : 0) + 'ms');
+            },
+            suffix: " ms"
+          }),
         }, {
           type: 'group',
           items: [
