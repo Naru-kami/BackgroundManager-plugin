@@ -1344,11 +1344,12 @@ module.exports = meta => {
     }
     // Get headerbar
     const filter = module => module?.Icon && module.Title,
-      modules = Webpack.getModule(m => Object.values(m).some(filter), { first: false });
+      modules = Webpack.getModules(m => Object.values(m).some(filter));
     for (const module of modules) {
       const HeaderBar = [module, Object.keys(module).find(key => filter(module[key]))];
       patchToolbar(HeaderBar);
     }
+    forceRerenderToolbar();
   }
 
   /** Cleanup when plugin is disabled */
@@ -1374,7 +1375,8 @@ module.exports = meta => {
     themeObserver.stop();
     viewTransition.destroy();
     // remove the icon
-    document.getElementById(meta.slug)?.remove();
+    forceRerenderToolbar();
+    // document.getElementById(meta.slug)?.remove();
     // unpatch contextmenu
     contextMenuPatcher.unpatch();
     // unpatch the toolbar
@@ -1662,6 +1664,34 @@ module.exports = meta => {
       node = node.parentElement;
     }
     return null;
+  }
+
+  function forceRerenderToolbar() {
+    // taken and refactored from Zerthox - https://github.com/Zerthox/BetterDiscord-Plugins/blob/8ae5b44c2fc29753336cc67f31b6b99ead5608d5/packages/dium/src/utils/react.ts#L189-L208
+    const queryFiber = (fiber, callback) => {
+      let count = 50, parent = fiber;
+
+      do {
+        if (callback(parent)) {
+          return parent;
+        }
+        parent = parent.return;
+      } while (parent && --count);
+
+      return null;
+    };
+
+    const forceFullRerender = fiber => new Promise(resolve => {
+      // find the fiber node's owner
+      const owner = queryFiber(fiber, node => node?.stateNode instanceof React.Component);
+      if (owner) {
+        owner.stateNode.forceUpdate(() => resolve(true));
+      } else {
+        resolve(false);
+      }
+    });
+    const toolbar = document.querySelector('.' + constants.toolbarClasses.toolbar);
+    toolbar ? forceFullRerender(BdApi.getInternalInstance(toolbar)) : console.warn('%c[BackgroundManager] %cCould not rerender toolbar', "color:#DBDCA6;font-weight:bold", "");
   }
 
   /** Returns the mime type of the image @param {Uint8Array} buffer The UInt8Array buffer */
