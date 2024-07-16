@@ -206,24 +206,6 @@ module.exports = meta => {
   };
 
   // Components
-  function CircularProgress({ loaderProps, ...props }) {
-    return jsx('div', {
-      className: 'BackgroundManager-skeleton',
-      ...props,
-      children: jsx('span', {
-        ...loaderProps,
-        className: 'BackgroundManager-loader',
-        children: jsx('svg', {
-          viewBox: "22 22 44 44",
-          style: { display: 'block' },
-          children: jsx('circle', {
-            cx: "44", cy: "44", r: "20.2", fill: "none", strokeWidth: "3.6"
-          })
-        })
-      })
-    })
-  }
-
   function IconComponent({ onClick, ...props }) {
     const handleKeyDown = useCallback(e => {
       props.onKeyDown?.(e);
@@ -549,7 +531,7 @@ module.exports = meta => {
         onClick: handleImageClick,
         onContextMenu: handleContextMenu,
         children: [
-          !loaded ? jsx(CircularProgress) : error ? jsx('div', { className: constants.textStyles.defaultColor }, 'Could not load image') : jsx('img', {
+          !loaded ? jsx(constants.nativeUI.Spinner) : error ? jsx('div', { className: constants.textStyles.defaultColor }, 'Could not load image') : jsx('img', {
             tabIndex: '-1',
             src: item.src || '',
             className: 'BackgroundManager-image',
@@ -663,10 +645,7 @@ module.exports = meta => {
           onDragEnter: handleDragEnter,
           onDragEnd: handleDragEnd,
           onDragLeave: handleDragEnd,
-          children: processing.length ? jsx(CircularProgress, {
-            style: { position: 'absolute', width: '2rem', height: '2rem', top: '1rem', right: '1rem', borderRadius: '50%', backgroundColor: 'rgba(0,0,0,0.5)' },
-            loaderProps: { style: { height: '100%' } }
-          }) : null
+          children: processing.length ? jsx(constants.nativeUI.Spinner) : null
         })),
         jsx(IconButton, {
           TooltipProps: { text: 'Open Images' },
@@ -1411,14 +1390,10 @@ module.exports = meta => {
   background: calc(50% - var(--BgManager-position-x, 0%)) calc(50% - var(--BgManager-position-y, 0%)) / cover no-repeat fixed;
   filter: grayscale(var(--BgManager-grayscale, 0%)) contrast(var(--BgManager-contrast, 100%)) saturate(var(--BgManager-saturation, 100%)) blur(var(--BgManager-blur, 0px));
   mix-blend-mode: plus-lighter;
-  transition: opacity var(--BgManager-transition-duration, 0ms) cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity var(--BgManager-transition-duration, 0ms) ease-out;
 }
 .BackgroundManager-bg.active {
   opacity: 1;
-}
-@keyframes loading-animation {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg);  }
 }
 @keyframes fade-in {
   0% { opacity: 0; }
@@ -1447,6 +1422,7 @@ module.exports = meta => {
 }
 .BackgroundManager-DropAndPasteArea {
   position: relative;
+  display: grid;
   border: 2px solid var(--blue-430, currentColor);
   border-radius: .5rem;
   outline: 2px dashed var(--blue-430, currentColor);
@@ -1455,10 +1431,10 @@ module.exports = meta => {
   caret-color: transparent;
   background: url( "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23333' d='M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z'/%3E%3C/svg%3E" ) center / contain no-repeat rgba(0, 0, 0, 0.5);
 }
-.BackgroundManager-DropAndPasteArea:is(:focus, .dragging, :focus-visible)::after {
+.BackgroundManager-DropAndPasteArea:is(:focus, .dragging, :focus-visible)::before {
   opacity: 1;
 }
-.BackgroundManager-DropAndPasteArea::after {
+.BackgroundManager-DropAndPasteArea::before {
   content: 'Drop or Paste Image Here';
   position: absolute;
   display: grid;
@@ -1569,27 +1545,7 @@ module.exports = meta => {
   align-content: start;
   scrollbar-gutter: stable;
   mask-image: linear-gradient(#0000, #000 0.5rem, #000 calc(100% - 0.5rem), #0000 100%), linear-gradient(to left, #000 0.75rem, #0000 0.75rem);
-}
-.BackgroundManager-skeleton {
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 100%;
-  padding-bottom: 1rem;
-}
-.BackgroundManager-loader {
-  aspect-ratio: 1;
-  height: 22.5%;
-  display: inline-block;
-  color: var(--blue-430, currentColor);
-  animation: 1.4s linear 0s infinite normal none running loading-animation;
-}
-.BackgroundManager-loader circle {
-  stroke: currentColor;
-  stroke-dasharray: 80px, 200px;
-  stroke-dashoffset: 0;
-}
-`);
+}`);
   }
 
   /**
