@@ -43,9 +43,7 @@ module.exports = meta => {
   */
 
   // Hooks
-  /**
-   * @returns {[typeof defaultSettings, React.Dispatch<typeof defaultSettings>]}
-   */
+  /** @returns {[typeof defaultSettings, React.Dispatch<typeof defaultSettings>]} */
   function useSettings() {
     const [settings, setSettings] = useState(constants.settings);
     const setSyncedSettings = useCallback((newSettings) => {
@@ -383,20 +381,36 @@ module.exports = meta => {
       return {
         saveAndCopy,
         lazyCarousel: images?.length && constants.nativeUI.lazyCarousel(images.map(img => ({
-          component: jsx('img', {
-            style: { maxWidth: '85vw', maxHeight: '75vh', borderRadius: '3px' },
-            src: img.src,
-            alt: 'Image',
-            className: constants.imageModal.image,
-            onClick: e => e?.stopPropagation?.(),
-            onContextMenu: e => {
-              const ModalContextMenu = ContextMenu.buildMenu(saveAndCopy(img));
-              ContextMenu.open(e, ModalContextMenu);
-            }
-          }),
+          component: jsx('div', { className: constants.imageModalClass.wrapper },
+            jsx('img', {
+              style: { maxWidth: '85vw', maxHeight: '75vh', borderRadius: '3px' },
+              src: img.src,
+              alt: 'Image-' + img.id,
+              className: constants.imageModal.image,
+              onClick: e => e?.stopPropagation?.(),
+              onContextMenu: e => ContextMenu.open(e, ContextMenu.buildMenu(saveAndCopy(img)))
+            }),
+            jsx('div', {
+              className: constants.imageModalClass.optionsContainer,
+              style: { justifyContent: 'flex-start' },
+              children: [
+                jsx(constants.nativeUI.Anchor, {
+                  className: constants.imageModalClass.downloadLink,
+                  onClick: async e => { e.stopPropagation(); e.preventDefault(); saveAndCopy(img)[0].action() }
+                }, 'Copy Image'),
+                jsx('div', {
+                  className: constants.imageModalClass.downloadLink,
+                  style: { pointerEvents: 'none', margin: '0px 5px' },
+                }, '|'),
+                jsx(constants.nativeUI.Anchor, {
+                  className: constants.imageModalClass.downloadLink,
+                  onClick: async e => { e.stopPropagation(); e.preventDefault(); saveAndCopy(img)[1].action() }
+                }, 'Save Image')
+              ]
+            })
+          ),
           src: img.src
-        }))
-        )
+        })))
       }
     }, [images])
 
@@ -1877,9 +1891,10 @@ module.exports = meta => {
           layerContainerClass: Webpack.getModule(Filters.byKeys('layerContainer')), // class of Discord's nativelayer container
           imageModal: Webpack.getModule(Filters.byKeys('modal', 'image')), // classes for image modal  
           originalLink: Webpack.getModule(Filters.byKeys('originalLink')), // class for image embed
-          scrollbar: Webpack.getModule(Filters.byKeys("thin")), // classes for scrollable content
+          scrollbar: Webpack.getModule(Filters.byKeys('thin')), // classes for scrollable content
           separator: Webpack.getModule(Filters.byKeys('scroller', 'separator')), // classes for separator
           baseLayer: Webpack.getModule(Filters.byKeys('baseLayer', 'bg')), // class of Discord's base layer
+          imageModalClass: Webpack.getModule(Filters.byKeys('downloadLink', 'wrapper')), // classes for image carousel
           nativeUI: {
             ...Webpack.getModule(Filters.byKeys('FormSwitch', 'FormItem')), // native ui module
             lazyCarousel: Object.values(Webpack.getModule(mods => Object.values(mods).some(filter))).filter(filter)[0], // Module for lazy carousel
