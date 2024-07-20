@@ -228,26 +228,27 @@ module.exports = meta => {
     })
   }
 
-  function ManagerComponent() {
+  function ManagerComponent({ onRequestClose }) {
     const mainComponent = useRef(null);
     useEffect(() => {
-      let layerContainer = null, mouseDownOnPopout = false;
-      const onResize = () => mainComponent.current.style.maxHeight = window.innerHeight - 88 + 'px';
-      const handleMouseDown = e => mouseDownOnPopout = mainComponent.current.contains(e.target);
-      const handleMouseUp = e => (mouseDownOnPopout || mainComponent.current.contains(e.target)) && e.stopPropagation();
-      if (constants.settings.enableDrop) {
+      let mouseDownOnPopout = false,
         layerContainer = reverseQuerySelector(mainComponent.current, '.' + constants.layerContainerClass.layerContainer);
-        layerContainer?.style.setProperty('z-index', '2002');
-      }
+      const onResize = () => mainComponent.current.style.maxHeight = window.innerHeight - 88 + 'px';
+      const handleMouseDown = e => mouseDownOnPopout = layerContainer?.contains(e.target);
+      const handleMouseUp = e => !mouseDownOnPopout && !layerContainer?.contains(e.target) && !e.target.closest('#' + meta.slug) && onRequestClose();
+      const handleKeyDown = e => e.key === 'Escape' && layerContainer?.childElementCount === 1 && onRequestClose();
       onResize();
+      constants.settings.enableDrop && layerContainer?.style.setProperty('z-index', '2002');
       window.addEventListener('resize', onResize);
-      constants.settings.enableDrop && window.addEventListener('mousedown', handleMouseDown, true);
-      constants.settings.enableDrop && window.addEventListener('mouseup', handleMouseUp, true);
+      window.addEventListener('mousedown', handleMouseDown);
+      window.addEventListener('mouseup', handleMouseUp);
+      window.addEventListener('keydown', handleKeyDown);
       return () => {
         layerContainer?.style.removeProperty('z-index');
         window.removeEventListener('resize', onResize);
-        window.removeEventListener('mousedown', handleMouseDown, true);
-        window.removeEventListener('mouseup', handleMouseUp, true);
+        window.removeEventListener('mousedown', handleMouseDown);
+        window.removeEventListener('mouseup', handleMouseUp);
+        window.removeEventListener('keydown', handleKeyDown);
       }
     }, []);
     !constants.settings.enableDrop && constants.nativeUI.useFocusLock(mainComponent);
@@ -654,10 +655,8 @@ module.exports = meta => {
       position: 'bottom',
       align: 'right',
       autoInvert: false,
-      ignoreModalClicks: true,
       spacing: 8,
-      onRequestClose: () => setOpen(false),
-      renderPopout: () => jsx(ManagerComponent),
+      renderPopout: () => jsx(ManagerComponent, { onRequestClose: () => setOpen(false) }),
       children: (e, t) => {
         return jsx(IconComponent, {
           ...e,
@@ -1291,7 +1290,7 @@ module.exports = meta => {
     const getSrc = [getSrcModule, Object.keys(getSrcModule).find(key => filter2(getSrcModule[key]))];
     Patcher.after(meta.slug, ...getSrc, (_, args, returnValue) => {
       if (returnValue.startsWith('blob:'))
-        return returnValue.split("?")[0];
+        return args[0].src;
     })
     // patch headerbar
     const filter = module => module?.Icon && module.Title && module.toString().includes('section');
