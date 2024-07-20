@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 1.2.1
+ * @version 1.2.2
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -236,19 +236,19 @@ module.exports = meta => {
       const onResize = () => mainComponent.current.style.maxHeight = window.innerHeight - 88 + 'px';
       const handleMouseDown = e => mouseDownOnPopout = layerContainer?.contains(e.target);
       const handleMouseUp = e => !mouseDownOnPopout && !layerContainer?.contains(e.target) && !e.target.closest('#' + meta.slug) && onRequestClose();
-      const handleKeyDown = e => e.key === 'Escape' && layerContainer?.childElementCount === 1 && onRequestClose();
+      const handleKeyDown = e => e.key === 'Escape' && layerContainer?.childElementCount === 1 && (onRequestClose(), e.stopPropagation());
       onResize();
       constants.settings.enableDrop && layerContainer?.style.setProperty('z-index', '2002');
       window.addEventListener('resize', onResize);
       window.addEventListener('mousedown', handleMouseDown);
       window.addEventListener('mouseup', handleMouseUp);
-      window.addEventListener('keydown', handleKeyDown);
+      window.addEventListener('keydown', handleKeyDown, true);
       return () => {
         layerContainer?.style.removeProperty('z-index');
         window.removeEventListener('resize', onResize);
         window.removeEventListener('mousedown', handleMouseDown);
         window.removeEventListener('mouseup', handleMouseUp);
-        window.removeEventListener('keydown', handleKeyDown);
+        window.removeEventListener('keydown', handleKeyDown, true);
       }
     }, []);
     !constants.settings.enableDrop && constants.nativeUI.useFocusLock(mainComponent);
@@ -301,24 +301,27 @@ module.exports = meta => {
         action: async () => {
           try {
             const arrayBuffer = new Uint8Array(await givenItem.image.arrayBuffer());
-            let url = (new URL(givenItem.src)).pathname.split('/').pop() || 'unknown';
-            const FileExtension = {
-              jpeg: [[0xFF, 0xD8, 0xFF, 0xEE]],
-              jpg: [[0xFF, 0xD8, 0xFF, 0xDB], [0xFF, 0xD8, 0xFF, 0xE0], [0xFF, 0xD8, 0xFF, 0xE1]],
-              png: [[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]],
-              bmp: [[0x42, 0x4D]],
-              gif: [[0x47, 0x49, 0x46, 0x38, 0x37, 0x61], [0x47, 0x49, 0x46, 0x38, 0x39, 0x61]],
-              heic: [[0x00, 0x00, 0x00, null, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63]],
-              avif: [[0x00, 0x00, 0x00, null, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66]],
-              webp: [[0x52, 0x49, 0x46, 0x46, null, null, null, null, 0x57, 0x45, 0x42, 0x50]],
-              svg: [[0x3C, 0x73, 0x76, 0x67]],
-              ico: [[0x00, 0x00, 0x01, 0x00]],
-            }
-            loop: for (const [ext, signs] of Object.entries(FileExtension)) {
-              for (const sign of signs) {
-                if (sign.every((e, i) => e === null || e === arrayBuffer[i])) {
-                  url += '.' + ext;
-                  break loop;
+            let url = givenItem.image.name
+            if (!url) {
+              url = (new URL(givenItem.src)).pathname.split('/').pop() || 'unknown';
+              const FileExtension = {
+                jpeg: [[0xFF, 0xD8, 0xFF, 0xEE]],
+                jpg: [[0xFF, 0xD8, 0xFF, 0xDB], [0xFF, 0xD8, 0xFF, 0xE0], [0xFF, 0xD8, 0xFF, 0xE1]],
+                png: [[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]],
+                bmp: [[0x42, 0x4D]],
+                gif: [[0x47, 0x49, 0x46, 0x38, 0x37, 0x61], [0x47, 0x49, 0x46, 0x38, 0x39, 0x61]],
+                heic: [[0x00, 0x00, 0x00, null, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63]],
+                avif: [[0x00, 0x00, 0x00, null, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66]],
+                webp: [[0x52, 0x49, 0x46, 0x46, null, null, null, null, 0x57, 0x45, 0x42, 0x50]],
+                svg: [[0x3C, 0x73, 0x76, 0x67]],
+                ico: [[0x00, 0x00, 0x01, 0x00]],
+              }
+              loop: for (const [ext, signs] of Object.entries(FileExtension)) {
+                for (const sign of signs) {
+                  if (sign.every((e, i) => e === null || e === arrayBuffer[i])) {
+                    url += '.' + ext;
+                    break loop;
+                  }
                 }
               }
             }
@@ -332,7 +335,7 @@ module.exports = meta => {
       }];
       return {
         saveAndCopy,
-        lazyCarousel: images?.length && constants.nativeUI.lazyCarousel(images.map(img => ({
+        lazyCarousel: images.length && constants.nativeUI.lazyCarousel(images.map(img => ({
           component: jsx(constants.nativeUI.imageModal, {
             src: img.src,
             original: img.src,
@@ -1288,8 +1291,8 @@ module.exports = meta => {
     const filter2 = m => m instanceof Function && ['sourceWidth:', '.split("?")'].every(s => m.toString().includes(s));
     const getSrcModule = Webpack.getModule(m => Object.values(m).some(filter2));
     const getSrc = [getSrcModule, Object.keys(getSrcModule).find(key => filter2(getSrcModule[key]))];
-    Patcher.after(meta.slug, ...getSrc, (_, args, returnValue) => {
-      if (returnValue.startsWith('blob:'))
+    Patcher.after(meta.slug, ...getSrc, (_, args) => {
+      if (args[0].src.startsWith('blob:'))
         return args[0].src;
     })
     // patch headerbar
@@ -1578,7 +1581,6 @@ module.exports = meta => {
     render() {
       return this.state.hasError ? this.props.fallback : this.props.children;
     }
-
   }
 
   /**
