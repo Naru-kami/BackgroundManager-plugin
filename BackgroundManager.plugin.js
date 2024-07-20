@@ -40,6 +40,8 @@ module.exports = meta => {
    * @property {boolean} selected - The selected Image for the background.
    * @property {string} src - The objectURL for the image
    * @property {number} id - The ID of the image.
+   * @property {width} width - The width of the image.
+   * @property {height} height - The height of the image.
   */
 
   // Hooks
@@ -271,57 +273,6 @@ module.exports = meta => {
 
   function ManagerBody() {
     const [images, setImages] = useIDB();
-    const handleFileTransfer = useCallback(blob => {
-      setImages(prev => [...prev, { image: blob, selected: false, src: URL.createObjectURL(blob), id: prev.length + 1 }]);
-    }, [setImages]);
-    const handleDrop = useCallback((e, callback) => {
-      e.preventDefault?.();
-      if (e.dataTransfer?.files?.length) {
-        const cleanup = callback();
-        for (const droppedFile of e.dataTransfer.files) {
-          if (droppedFile.type.startsWith('image/')) {
-            handleFileTransfer(droppedFile);
-          }
-        }
-        cleanup();
-      } else if (e.dataTransfer?.getData('URL')) {
-        const cleanup = callback();
-        fetch(e.dataTransfer.getData('URL')).then(async response => {
-          return response.ok ? response : Promise.reject(response.status);
-        }).then(res =>
-          res.headers.get('Content-Type').startsWith('image/') ?
-            res.blob() :
-            Promise.reject('Dropped item is not an image.')
-        ).then(blob =>
-          handleFileTransfer(blob)
-        ).catch(err => {
-          BdApi.showToast('Cannot get image data. ' + err, { type: 'error' });
-          console.error('Status: ', err)
-        }).finally(() => {
-          cleanup();
-        });
-      }
-    }, [handleFileTransfer]);
-    const handlePaste = useCallback((e, callback) => {
-      const cleanup = callback();
-      e.preventDefault?.();
-      let items = e.clipboardData.items;
-      for (let index in items) {
-        let item = items[index];
-        if (item.kind === 'file') {
-          const blob = item.getAsFile();
-          handleFileTransfer(blob);
-          break;
-        }
-      }
-      cleanup();
-    }, [handleFileTransfer]);
-    const handleUpload = useCallback(uploaded => {
-      setImages(prev => {
-        uploaded.forEach(e => e.id += prev.length);
-        return [...prev, ...uploaded];
-      });
-    }, [setImages]);
     const contextMenuObj = useMemo(() => {
       const saveAndCopy = givenItem => [{
         label: "Copy Image",
@@ -381,44 +332,31 @@ module.exports = meta => {
       return {
         saveAndCopy,
         lazyCarousel: images?.length && constants.nativeUI.lazyCarousel(images.map(img => ({
-          component: jsx('div', { className: constants.imageModalClass.wrapper },
-            jsx('img', {
-              style: { maxWidth: '85vw', maxHeight: '75vh', borderRadius: '3px' },
-              src: img.src,
-              alt: 'Image-' + img.id,
-              className: constants.imageModal.image,
-              onClick: e => e?.stopPropagation?.(),
-              onContextMenu: e => ContextMenu.open(e, ContextMenu.buildMenu(saveAndCopy(img)))
-            }),
-            jsx('div', {
-              className: constants.imageModalClass.optionsContainer,
-              style: { justifyContent: 'flex-start' },
-              children: [
-                jsx(constants.nativeUI.Anchor, {
-                  className: constants.imageModalClass.downloadLink,
-                  onClick: async e => { e.stopPropagation(); e.preventDefault(); saveAndCopy(img)[0].action() }
-                }, 'Copy Image'),
-                jsx('div', {
-                  className: constants.imageModalClass.downloadLink,
-                  style: { pointerEvents: 'none', margin: '0px 5px' },
-                }, '|'),
-                jsx(constants.nativeUI.Anchor, {
-                  className: constants.imageModalClass.downloadLink,
-                  onClick: async e => { e.stopPropagation(); e.preventDefault(); saveAndCopy(img)[1].action() }
-                }, 'Save Image')
-              ]
-            })
-          ),
+          component: jsx(constants.nativeUI.imageModal, {
+            src: img.src,
+            original: img.src,
+            renderLinkComponent: e => jsx('div', { style: { display: 'flex', gap: 'inherit' } },
+              jsx(constants.nativeUI.Anchor, {
+                className: e.className,
+                onClick: async e => { e.stopPropagation(); e.preventDefault(); saveAndCopy(img)[0].action() }
+              }, 'Copy Image'),
+              jsx('div', {
+                className: e.className,
+                style: { pointerEvents: 'none', margin: '0px 5px' },
+              }, '|'),
+              jsx(constants.nativeUI.Anchor, {
+                className: e.className,
+                onClick: async e => { e.stopPropagation(); e.preventDefault(); saveAndCopy(img)[1].action() }
+              }, 'Save Image')
+            ),
+            renderForwardComponent: () => { },
+            width: img.width, height: img.height,
+            onContextMenu: e => ContextMenu.open(e, ContextMenu.buildMenu(saveAndCopy(img))),
+          }),
           src: img.src
         })))
       }
-    }, [images])
-
-    const handleDelete = useCallback(index => {
-      setImages(prev => {
-        return prev.filter(e => e.id !== index).map((e, i) => { e.id = i + 1; return e; });
-      });
-    }, [setImages]);
+    }, [images]);
     const handleSelect = useCallback(index => {
       setImages(prev => {
         prev.forEach(e => {
@@ -426,16 +364,6 @@ module.exports = meta => {
         });
         return [...prev];
       });
-    }, [setImages]);
-    const handleRemove = useCallback(() => {
-      setImages(prev => {
-        prev.forEach(e => {
-          e.selected = false;
-        });
-        viewTransition.removeImage()
-        return [...prev];
-      });
-
     }, [setImages]);
     const onNextShuffle = useCallback(() => {
       const currentIndex = images.reduce((p, c, i) => c.selected ? i : p, null);
@@ -453,13 +381,8 @@ module.exports = meta => {
       style: { display: "grid", gridTemplateRows: 'auto auto 1fr', overflow: 'hidden', border: '0' },
     },
       jsx(ErrorBoundary, { fallback: 'Internal Component Error. Background Manager crashed.' },
-        jsx(InputComponent, {
-          onDrop: handleDrop,
-          onPaste: handlePaste,
-          onRemove: handleRemove,
-          onUpload: handleUpload,
-          rerender: setImages
-        }), jsx('div', {
+        jsx(InputComponent, { setImages }),
+        jsx('div', {
           role: 'separator',
           className: constants.separator.separator,
           style: { marginRight: '0.75rem' }
@@ -483,24 +406,21 @@ module.exports = meta => {
           ],
         }) : null, jsx('div', {
           className: ['BackgroundManager-gridWrapper', constants.scrollbar.thin].join(' '),
-        }, images.map(e => {
-          return jsx(ImageComponent, {
-            key: e.src,
-            item: e,
-            contextMenuObj,
-            onDelete: handleDelete,
-            onSelect: handleSelect
-          })
-        })
+        }, images.map(e => jsx(ImageComponent, {
+          key: e.src,
+          item: e,
+          contextMenuObj,
+          setImages,
+          onSelect: handleSelect
+        }))
         )
       )
     )
   }
 
-  function ImageComponent({ item, onDelete, onSelect, contextMenuObj }) {
+  function ImageComponent({ item, onSelect, contextMenuObj, setImages }) {
     const [loaded, setLoaded] = useState(false);
     const [error, setError] = useState(false);
-    const [dimensions, setDimensions] = useState({});
     const handleImageClick = useCallback(() => {
       onSelect(item.id);
       viewTransition.setImage(item.src);
@@ -508,9 +428,9 @@ module.exports = meta => {
     const handleDelete = useCallback(e => {
       e.stopPropagation();
       URL.revokeObjectURL(item.src);
-      onDelete(item.id);
+      setImages(prev => prev.filter(e => e.id !== item.id).map((e, i) => { e.id = i + 1; return e; }));
       item.selected && viewTransition.removeImage();
-    }, [onDelete, item.id, item.selected, item.src]);
+    }, [setImages, item.id, item.selected, item.src]);
     const handleContextMenu = useCallback(e => {
       const ImageContextMenu = ContextMenu.buildMenu([{
         label: "View Image",
@@ -524,7 +444,17 @@ module.exports = meta => {
       let first = true;
       const img = new Image();
       img.src = item.src || '';
-      img.onload = () => { setLoaded(true); setDimensions({ width: img.width, height: img.height }) };
+      img.onload = () => {
+        setLoaded(true);
+        if (!item.height && !item.width) {
+          setImages(prev => {
+            const loadedItem = prev.find(e => e.id === item.id);
+            loadedItem.width = img.width;
+            loadedItem.height = img.height;
+            return [...prev];
+          });
+        }
+      };
       img.onerror = () => {
         if (first) {
           URL.revokeObjectURL(item.src);
@@ -554,7 +484,7 @@ module.exports = meta => {
               jsx('div', {
                 className: 'BackgroundManager-imageData',
                 'data-size': formatNumber(item.image.size),
-                'data-dimensions': dimensions.width && dimensions.height ? dimensions.width + ' x ' + dimensions.height : null,
+                'data-dimensions': item.width && item.height ? item.width + ' x ' + item.height : null,
                 'data-mime': item.image.type?.split('/').pop().toUpperCase() || null,
               })
             ]
@@ -574,10 +504,16 @@ module.exports = meta => {
     )
   }
 
-  function InputComponent({ onDrop, onPaste, onRemove, onUpload, rerender }) {
+  function InputComponent({ setImages }) {
     const [processing, setProcessing] = useState([]);
     const dropArea = useRef(null);
 
+    const handleFileTransfer = useCallback(blob => {
+      const img = new Image();
+      img.onload = () => setImages(prev => [...prev, { id: prev.length + 1, image: blob, width: img.width, height: img.height, selected: false, src: img.src }]);
+      img.onerror = () => URL.revokeObjectURL(img.src);
+      img.src = URL.createObjectURL(blob);
+    }, [setImages]);
     const handleUpload = useCallback(() => {
       DiscordNative.fileManager.openFiles({
         properties: ['openFile', 'multiSelections'],
@@ -594,24 +530,15 @@ module.exports = meta => {
         ]
       }).then(files => {
         if (!files.length) return;
-        const toPush = [];
-        files.forEach((file, i) => {
+        files.forEach(file => {
           if (!file.data || !['png', 'jpg', 'jpeg', 'jpe', 'jfif', 'exif', 'bmp', 'dib', 'rle', 'gif', 'avif', 'webp', 'svg', 'ico'].includes(file.filename?.split('.').pop()?.toLowerCase())) {
-            console.warn('Could not upload ' + file.filename + '. Data is empty, or ' + file.filename + ' is not an image.')
-            BdApi.showToast('Could not upload ' + file.filename + '. Data is empty, or ' + file.filename + ' is not an image.', { type: 'error' });
-            return;
+            console.warn('Could not upload ' + file.filename + '. Data is empty, or ' + file.filename + ' is not an image.');
+            return BdApi.showToast('Could not upload ' + file.filename + '. Data is empty, or ' + file.filename + ' is not an image.', { type: 'error' });
           }
-          const blob = new Blob([file.data], { type: getImageType(file.data) });
-          toPush.push({
-            image: blob,
-            selected: false,
-            src: URL.createObjectURL(blob),
-            id: i + 1
-          })
+          handleFileTransfer(new Blob([file.data], { type: getImageType(file.data) }));
         });
-        onUpload(toPush);
       }).catch(e => { console.error(e); BdApi.showToast('Could not upload image. ' + e, { type: 'error' }) });
-    }, [onUpload]);
+    }, [setImages]);
     const handleInput = useCallback(e => {
       e.preventDefault?.();
       e.target.textContent = '';
@@ -630,18 +557,51 @@ module.exports = meta => {
     const handleDrop = useCallback(e => {
       const timeStamp = Date.now();
       handleDragEnd();
-      onDrop(e, () => {
+      if (e.dataTransfer?.files?.length) {
         setProcessing(prev => [...prev, timeStamp]);
-        return () => setProcessing(prev => prev.filter(t => t !== timeStamp));
-      });
-    }, [onDrop, handleDragEnd, setProcessing]);
+        for (const droppedFile of e.dataTransfer.files) {
+          handleFileTransfer(droppedFile);
+        }
+        setProcessing(prev => prev.filter(t => t !== timeStamp));
+      } else if (e.dataTransfer?.getData('URL')) {
+        setProcessing(prev => [...prev, timeStamp]);
+        fetch(e.dataTransfer.getData('URL')).then(async response => {
+          return response.ok ? response : Promise.reject(response.status);
+        }).then(res =>
+          res.headers.get('Content-Type').startsWith('image/') ?
+            res.blob() :
+            Promise.reject('Dropped item is not an image.')
+        ).then(handleFileTransfer).catch(err => {
+          BdApi.showToast('Cannot get image data. ' + err, { type: 'error' });
+          console.error('Status: ', err)
+        }).finally(() => {
+          setProcessing(prev => prev.filter(t => t !== timeStamp));
+        });
+      }
+    }, [handleFileTransfer, handleDragEnd, setProcessing]);
     const handlePaste = useCallback(e => {
+      e.preventDefault?.();
       const timeStamp = Date.now();
-      onPaste(e, () => {
-        setProcessing(prev => [...prev, timeStamp]);
-        return () => setProcessing(prev => prev.filter(t => t !== timeStamp));
+      setProcessing(prev => [...prev, timeStamp]);
+      let items = e.clipboardData.items;
+      for (let index in items) {
+        let item = items[index];
+        if (item.kind === 'file') {
+          handleFileTransfer(item.getAsFile());
+          break;
+        }
+      }
+      setProcessing(prev => prev.filter(t => t !== timeStamp));
+    }, [handleFileTransfer, setProcessing]);
+    const handleRemove = useCallback(() => {
+      setImages(prev => {
+        prev.forEach(e => {
+          e.selected = false;
+        });
+        viewTransition.removeImage();
+        return [...prev];
       });
-    }, [onPaste, setProcessing]);
+    }, [setImages]);
 
     useEffect(() => { dropArea.current.focus() }, []);
 
@@ -669,12 +629,12 @@ module.exports = meta => {
           },
           SvgProps: { path: 'M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2m0 12H4V6h5.17l2 2H20zM9.41 14.42 11 12.84V17h2v-4.16l1.59 1.59L16 13.01 12.01 9 8 13.01z' }
         }),
-        jsx(InPopoutSettings, { rerender }),
+        jsx(InPopoutSettings, { rerender: setImages }),
         jsx(IconButton, {
           TooltipProps: { text: 'Remove Custom Background' },
           ButtonProps: {
             className: 'BackgroundManager-RemoveBgButton',
-            onClick: onRemove,
+            onClick: handleRemove,
           },
           SvgProps: { path: 'M22 8h-8v-2h8v2zM19 10H12V5H5c-1.1 0 -2 0.9 -2 2v12c 0 1.1 0.9 2 2 2h12c1.1 0 2 -0.9 2 -2zM5 19l3 -4l2 3l3 -4l4 5H5z' }
         })
@@ -1034,46 +994,44 @@ module.exports = meta => {
           }),
         }, {
           type: 'group',
-          items: [
-            {
-              label: "Enable Slideshow",
-              type: 'toggle',
-              checked: settings.slideshow.enabled,
-              action: () => setSettings(prev => {
-                (prev.slideshow.enabled = !prev.slideshow.enabled) ? slideShowManager.start() : slideShowManager.stop();
-                rerender(e => [...e]);
-                return prev;
-              })
-            }, {
+          items: [{
+            label: "Enable Slideshow",
+            type: 'toggle',
+            checked: settings.slideshow.enabled,
+            action: () => setSettings(prev => {
+              (prev.slideshow.enabled = !prev.slideshow.enabled) ? slideShowManager.start() : slideShowManager.stop();
+              rerender(e => [...e]);
+              return prev;
+            })
+          }, {
+            label: "Slideshow Interval",
+            type: "custom",
+            render: () => jsx(MenuInput, {
+              disabled: !settings.slideshow.enabled,
               label: "Slideshow Interval",
-              type: "custom",
-              render: () => jsx(MenuInput, {
-                disabled: !settings.slideshow.enabled,
-                label: "Slideshow Interval",
-                value: settings.slideshow.interval / 6e4,
-                type: 'number', minValue: 0.5, maxValue: 120,
-                decimals: 1,
-                onChange: newVal => {
-                  let oldValue;
-                  setSettings(prev => {
-                    oldValue = prev.slideshow.interval;
-                    prev.slideshow.interval = Number(newVal) * 6e4;
-                    return prev;
-                  });
-                  if (oldValue !== newVal * 6e4) slideShowManager.start();
-                },
-                suffix: " min"
-              }),
-            }, {
-              label: "Shuffle Slideshow",
-              type: 'toggle',
-              checked: settings.slideshow.shuffle,
-              action: () => setSettings(prev => {
-                prev.slideshow.shuffle = !prev.slideshow.shuffle;
-                return prev;
-              })
-            }
-          ]
+              value: settings.slideshow.interval / 6e4,
+              type: 'number', minValue: 0.5, maxValue: 120,
+              decimals: 1,
+              onChange: newVal => {
+                let oldValue;
+                setSettings(prev => {
+                  oldValue = prev.slideshow.interval;
+                  prev.slideshow.interval = Number(newVal) * 6e4;
+                  return prev;
+                });
+                if (oldValue !== newVal * 6e4) slideShowManager.start();
+              },
+              suffix: " min"
+            }),
+          }, {
+            label: "Shuffle Slideshow",
+            type: 'toggle',
+            checked: settings.slideshow.shuffle,
+            action: () => setSettings(prev => {
+              prev.slideshow.shuffle = !prev.slideshow.shuffle;
+              return prev;
+            })
+          }]
         }, { type: 'separator', }, {
           label: "Enable Drop Area",
           type: 'toggle',
@@ -1101,120 +1059,119 @@ module.exports = meta => {
         }, {
           label: "Adjust Image",
           type: "submenu",
-          items: [
-            {
+          items: [{
+            label: "x-Position",
+            type: "custom",
+            render: () => jsx(MenuInput, {
               label: "x-Position",
-              type: "custom",
-              render: () => jsx(MenuInput, {
-                label: "x-Position",
-                value: settings.adjustment.xPosition,
-                type: 'number', minValue: -50, maxValue: 50,
-                decimals: 0,
-                onChange: newVal => setSettings(prev => {
-                  prev.adjustment.xPosition = Math.min(50, Math.max(-50, newVal));
-                  viewTransition.bgContainer()?.style.setProperty('--BgManager-position-x', Math.min(50, Math.max(-50, newVal)) + '%')
-                  return prev;
-                }),
-                onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-position-x', Math.min(50, Math.max(-50, newVal)) + '%'),
-                suffix: ' %'
+              value: settings.adjustment.xPosition,
+              type: 'number', minValue: -50, maxValue: 50,
+              decimals: 0,
+              onChange: newVal => setSettings(prev => {
+                prev.adjustment.xPosition = Math.min(50, Math.max(-50, newVal));
+                viewTransition.bgContainer()?.style.setProperty('--BgManager-position-x', Math.min(50, Math.max(-50, newVal)) + '%')
+                return prev;
               }),
-            }, {
+              onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-position-x', Math.min(50, Math.max(-50, newVal)) + '%'),
+              suffix: ' %'
+            }),
+          }, {
+            label: "y-Position",
+            type: "custom",
+            render: () => jsx(MenuInput, {
               label: "y-Position",
-              type: "custom",
-              render: () => jsx(MenuInput, {
-                label: "y-Position",
-                value: settings.adjustment.yPosition,
-                type: 'number', minValue: -50, maxValue: 50,
-                decimals: 0,
-                onChange: newVal => setSettings(prev => {
-                  prev.adjustment.yPosition = Math.min(50, Math.max(-50, newVal));
-                  viewTransition.bgContainer()?.style.setProperty('--BgManager-position-y', Math.min(50, Math.max(-50, newVal)) + '%')
-                  return prev;
-                }),
-                onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-position-y', Math.min(50, Math.max(-50, newVal)) + '%'),
-                suffix: ' %'
+              value: settings.adjustment.yPosition,
+              type: 'number', minValue: -50, maxValue: 50,
+              decimals: 0,
+              onChange: newVal => setSettings(prev => {
+                prev.adjustment.yPosition = Math.min(50, Math.max(-50, newVal));
+                viewTransition.bgContainer()?.style.setProperty('--BgManager-position-y', Math.min(50, Math.max(-50, newVal)) + '%')
+                return prev;
               }),
-            }, { type: 'separator' }, {
-              label: 'Dimming',
-              type: "custom",
-              render: () => jsx(MenuInput, {
-                label: "Dimming",
-                value: settings.adjustment.dimming,
-                type: 'number', minValue: 0, maxValue: 1,
-                decimals: 2,
-                onChange: newVal => setSettings(prev => {
-                  prev.adjustment.dimming = newVal;
-                  viewTransition.bgContainer()?.style.setProperty('--BgManager-dimming', newVal);
-                  return prev;
-                }),
-                onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-dimming', newVal),
-                suffix: ''
+              onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-position-y', Math.min(50, Math.max(-50, newVal)) + '%'),
+              suffix: ' %'
+            }),
+          }, { type: 'separator' }, {
+            label: 'Dimming',
+            type: "custom",
+            render: () => jsx(MenuInput, {
+              label: "Dimming",
+              value: settings.adjustment.dimming,
+              type: 'number', minValue: 0, maxValue: 1,
+              decimals: 2,
+              onChange: newVal => setSettings(prev => {
+                prev.adjustment.dimming = newVal;
+                viewTransition.bgContainer()?.style.setProperty('--BgManager-dimming', newVal);
+                return prev;
               }),
-            }, {
+              onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-dimming', newVal),
+              suffix: ''
+            }),
+          }, {
+            label: "Blur",
+            type: "custom",
+            render: () => jsx(MenuInput, {
               label: "Blur",
-              type: "custom",
-              render: () => jsx(MenuInput, {
-                label: "Blur",
-                value: settings.adjustment.blur,
-                type: 'number', minValue: 0, maxValue: 100,
-                decimals: 0,
-                onChange: newVal => setSettings(prev => {
-                  prev.adjustment.blur = Math.min(100, Math.max(0, newVal));
-                  viewTransition.bgContainer()?.style.setProperty('--BgManager-blur', Math.min(100, Math.max(0, newVal)) + 'px')
-                  return prev;
-                }),
-                onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-blur', Math.min(100, Math.max(0, newVal)) + 'px'),
-                suffix: ' px'
+              value: settings.adjustment.blur,
+              type: 'number', minValue: 0, maxValue: 100,
+              decimals: 0,
+              onChange: newVal => setSettings(prev => {
+                prev.adjustment.blur = Math.min(100, Math.max(0, newVal));
+                viewTransition.bgContainer()?.style.setProperty('--BgManager-blur', Math.min(100, Math.max(0, newVal)) + 'px')
+                return prev;
               }),
-            }, {
+              onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-blur', Math.min(100, Math.max(0, newVal)) + 'px'),
+              suffix: ' px'
+            }),
+          }, {
+            label: "Grayscale",
+            type: "custom",
+            render: () => jsx(MenuInput, {
               label: "Grayscale",
-              type: "custom",
-              render: () => jsx(MenuInput, {
-                label: "Grayscale",
-                value: settings.adjustment.grayscale,
-                type: 'number', minValue: 0, maxValue: 100,
-                decimals: 0,
-                onChange: newVal => setSettings(prev => {
-                  prev.adjustment.grayscale = Math.min(100, Math.max(0, newVal));
-                  viewTransition.bgContainer()?.style.setProperty('--BgManager-grayscale', Math.min(100, Math.max(0, newVal)) + '%')
-                  return prev;
-                }),
-                onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-grayscale', Math.min(100, Math.max(0, newVal)) + '%'),
-                suffix: ' %'
+              value: settings.adjustment.grayscale,
+              type: 'number', minValue: 0, maxValue: 100,
+              decimals: 0,
+              onChange: newVal => setSettings(prev => {
+                prev.adjustment.grayscale = Math.min(100, Math.max(0, newVal));
+                viewTransition.bgContainer()?.style.setProperty('--BgManager-grayscale', Math.min(100, Math.max(0, newVal)) + '%')
+                return prev;
               }),
-            }, {
-              label: "Saturate",
-              type: "custom",
-              render: () => jsx(MenuInput, {
-                label: "Saturation",
-                value: settings.adjustment.saturate,
-                type: 'number', minValue: 0, maxValue: 300,
-                decimals: 0,
-                onChange: newVal => setSettings(prev => {
-                  prev.adjustment.saturate = Math.min(300, Math.max(0, newVal));
-                  viewTransition.bgContainer()?.style.setProperty('--BgManager-saturation', Math.min(300, Math.max(0, newVal)) + '%')
-                  return prev;
-                }),
-                onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-saturation', Math.min(300, Math.max(0, newVal)) + '%'),
-                suffix: ' %'
+              onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-grayscale', Math.min(100, Math.max(0, newVal)) + '%'),
+              suffix: ' %'
+            }),
+          }, {
+            label: "Saturate",
+            type: "custom",
+            render: () => jsx(MenuInput, {
+              label: "Saturation",
+              value: settings.adjustment.saturate,
+              type: 'number', minValue: 0, maxValue: 300,
+              decimals: 0,
+              onChange: newVal => setSettings(prev => {
+                prev.adjustment.saturate = Math.min(300, Math.max(0, newVal));
+                viewTransition.bgContainer()?.style.setProperty('--BgManager-saturation', Math.min(300, Math.max(0, newVal)) + '%')
+                return prev;
               }),
-            }, {
+              onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-saturation', Math.min(300, Math.max(0, newVal)) + '%'),
+              suffix: ' %'
+            }),
+          }, {
+            label: "Contrast",
+            type: "custom",
+            render: () => jsx(MenuInput, {
               label: "Contrast",
-              type: "custom",
-              render: () => jsx(MenuInput, {
-                label: "Contrast",
-                value: settings.adjustment.contrast,
-                type: 'number', minValue: 0, maxValue: 300,
-                decimals: 0,
-                onChange: newVal => setSettings(prev => {
-                  prev.adjustment.contrast = Math.min(300, Math.max(0, newVal));
-                  viewTransition.bgContainer()?.style.setProperty('--BgManager-contrast', Math.min(300, Math.max(0, newVal)) + '%')
-                  return prev;
-                }),
-                onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-contrast', Math.min(300, Math.max(0, newVal)) + '%'),
-                suffix: ' %'
+              value: settings.adjustment.contrast,
+              type: 'number', minValue: 0, maxValue: 300,
+              decimals: 0,
+              onChange: newVal => setSettings(prev => {
+                prev.adjustment.contrast = Math.min(300, Math.max(0, newVal));
+                viewTransition.bgContainer()?.style.setProperty('--BgManager-contrast', Math.min(300, Math.max(0, newVal)) + '%')
+                return prev;
               }),
-            }
+              onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-contrast', Math.min(300, Math.max(0, newVal)) + '%'),
+              suffix: ' %'
+            }),
+          }
           ]
         }
       ]);
@@ -1232,16 +1189,6 @@ module.exports = meta => {
   }
 
   // Patching functions
-  function patchToolbar(HeaderBar) {
-    Patcher.before(meta.slug, ...HeaderBar, (_, args) => {
-      // Check if toolbar children exists and if its an Array. Also, check if our component is already there.
-      if (Array.isArray(args[0]?.toolbar?.props?.children) && !args[0].toolbar.props.children.some?.(e => e?.key === meta.slug)) {
-        // Render the component behind the search bar.
-        args[0].toolbar.props.children.splice(-2, 0, jsx(PopoutComponent, { key: meta.slug }));
-      }
-    })
-  }
-
   /** Manager to patch and unpatch the context menu. Adds an option to add images to the Manager */
   const contextMenuPatcher = function () {
     let cleanupImage, cleanupMessage;
@@ -1307,10 +1254,14 @@ module.exports = meta => {
           if (!response.ok) throw new Error(response.status);
           if (!response.headers.get('Content-Type').startsWith('image/')) throw new Error('Item is not an image.');
           const blub = await response.blob();
-          setImageFromIDB(storedImages => {
-            storedImages.push({ image: blub, selected: false, src: null, id: storedImages.length + 1 });
+          const image = new Image();
+          image.onload = () => setImageFromIDB(storedImages => {
+            storedImages.push({ id: storedImages.length + 1, image: blub, width: image.width, height: image.height, selected: false, src: null });
+            URL.revokeObjectURL(image.src);
             BdApi.showToast("Successfully added to BackgroundManager", { type: 'success' });
           });
+          image.onerror = () => URL.revokeObjectURL(image.src);
+          image.src = URL.createObjectURL(blub);
         } catch (err) {
           console.error('Status ', err)
           BdApi.showToast("Failed to add to BackgroundManager. Status " + err, { type: 'error' });
@@ -1333,15 +1284,25 @@ module.exports = meta => {
 
   /** Patches the button to the HeaderBar */
   function addButton() {
-    if (constants.settings.addContextMenu) {
-      contextMenuPatcher.patch();
-    }
-    // Get headerbar
+    if (constants.settings.addContextMenu) contextMenuPatcher.patch();
+    // patch image Modal to be able to show blobs as well
+    const filter2 = m => m instanceof Function && ['sourceWidth:', '.split("?")'].every(s => m.toString().includes(s));
+    const getSrcModule = Webpack.getModule(m => Object.values(m).some(filter2));
+    const getSrc = [getSrcModule, Object.keys(getSrcModule).find(key => filter2(getSrcModule[key]))];
+    Patcher.after(meta.slug, ...getSrc, (_, args, returnValue) => {
+      if (returnValue.startsWith('blob:'))
+        return returnValue.split("?")[0];
+    })
+    // patch headerbar
     const filter = module => module?.Icon && module.Title && module.toString().includes('section');
-    const headerModule = Webpack.getModule(m => Object.values(m).some(filter));
-    const HeaderBar = [headerModule, Object.keys(headerModule).find(key => filter(headerModule[key]))];
-
-    patchToolbar(HeaderBar);
+    const HeaderBarModule = Webpack.getModule(m => Object.values(m).some(filter));
+    const HeaderBar = [HeaderBarModule, Object.keys(HeaderBarModule).find(key => filter(HeaderBarModule[key]))];
+    Patcher.before(meta.slug, ...HeaderBar, (_, args) => {
+      // Check if toolbar children exists and if its an Array. Also, check if our component is already there.
+      if (Array.isArray(args[0]?.toolbar?.props?.children) && !args[0].toolbar.props.children.some?.(e => e?.key === meta.slug))
+        // Render the component behind the search bar.
+        args[0].toolbar.props.children.splice(-2, 0, jsx(PopoutComponent, { key: meta.slug }));
+    })
     forceRerenderToolbar();
   }
 
@@ -1386,7 +1347,7 @@ module.exports = meta => {
     DOM.addStyle(meta.slug + '-style', `
 .BackgroundManager-NumberInput::-webkit-inner-spin-button,
 .BackgroundManager-SettingsTextInput input::-webkit-inner-spin-button {
-    display: none;
+  display: none;
 }
 .${constants.baseLayer.bg} {
   isolation: isolate;
@@ -1690,7 +1651,6 @@ module.exports = meta => {
     function handleVisibilityChange(e) {
       e.target.visibilityState === 'visible' && (triggeredWhileHidden = false);
     }
-
     function start() {
       stop();
       document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -1881,7 +1841,7 @@ module.exports = meta => {
       try {
         !Object.keys(constants).length && console.log('%c[BackgroundManager] %cInitialized', "color:#DBDCA6;font-weight:bold", "")
         const configs = Data.load(meta.slug, "settings");
-        let filter = m => m instanceof Function && m.toString().includes(".MEDIA_VIEWER,") && m.toString().includes(".entries())");
+        let filter = strings => m => m instanceof Function && strings.every(s => m.toString().includes(s));
         Object.assign(constants, {
           toolbarClasses: Webpack.getModule(Filters.byKeys("title", "toolbar")), // classes for toolbar
           messagesPopoutClasses: Webpack.getModule(Filters.byKeys("messagesPopout")), // classes for messages popout
@@ -1894,10 +1854,10 @@ module.exports = meta => {
           scrollbar: Webpack.getModule(Filters.byKeys('thin')), // classes for scrollable content
           separator: Webpack.getModule(Filters.byKeys('scroller', 'separator')), // classes for separator
           baseLayer: Webpack.getModule(Filters.byKeys('baseLayer', 'bg')), // class of Discord's base layer
-          imageModalClass: Webpack.getModule(Filters.byKeys('downloadLink', 'wrapper')), // classes for image carousel
           nativeUI: {
             ...Webpack.getModule(Filters.byKeys('FormSwitch', 'FormItem')), // native ui module
-            lazyCarousel: Object.values(Webpack.getModule(mods => Object.values(mods).some(filter))).filter(filter)[0], // Module for lazy carousel
+            lazyCarousel: Object.values(Webpack.getModule(m => Object.values(m).some(filter([".MEDIA_VIEWER,", ".entries())"])))).filter(filter([".MEDIA_VIEWER,", ".entries())"]))[0], // Module for lazy carousel
+            imageModal: Object.values(Webpack.getModule(m => Object.values(m).some(filter([".MEDIA_MODAL_CLOSE"])))).filter(filter(['.MEDIA_MODAL_CLOSE']))[0],
           }, // DiscordNative: Webpack.getByKeys('copyImage') // copyImage, saveImage
           settings: {
             ...defaultSettings,
