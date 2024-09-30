@@ -1288,7 +1288,7 @@ module.exports = meta => {
   function addButton() {
     if (constants.settings.addContextMenu) contextMenuPatcher.patch();
     // patch image Modal to be able to show blobs as well
-    const filter2 = m => m instanceof Function && ['sourceWidth:', '.split("?")'].every(s => m.toString().includes(s));
+    const filter2 = m => m instanceof Function && ['sourceWidth:', 'sourceHeight:'].every(s => m.toString().includes(s));
     const getSrcModule = Webpack.getModule(m => Object.values(m).some(filter2));
     const getSrc = [getSrcModule, Object.keys(getSrcModule).find(key => filter2(getSrcModule[key]))];
     Patcher.after(meta.slug, ...getSrc, (_, args) => {
@@ -1857,7 +1857,7 @@ module.exports = meta => {
           baseLayer: Webpack.getModule(Filters.byKeys('baseLayer', 'bg')), // class of Discord's base layer
           nativeUI: {
             ...Webpack.getModule(Filters.byKeys('FormSwitch', 'FormItem')), // native ui module
-            lazyCarousel: Object.values(Webpack.getModule(m => Object.values(m).some(filter([".MEDIA_VIEWER,", ".entries())"])))).filter(filter([".MEDIA_VIEWER,", ".entries())"]))[0], // Module for lazy carousel
+            lazyCarousel: Object.values(Webpack.getModule(m => Object.values(m).some(filter([".entries()", ".src"])))).filter(filter([".entries()", ".src"]))[0], // Module for lazy carousel
             imageModal: Object.values(Webpack.getModule(m => Object.values(m).some(filter([".MEDIA_MODAL_CLOSE"])))).filter(filter(['.MEDIA_MODAL_CLOSE']))[0],
           }, // DiscordNative: Webpack.getByKeys('copyImage') // copyImage, saveImage
           settings: {
