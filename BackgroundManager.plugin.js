@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 1.2.2
+ * @version 1.2.3
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -275,7 +275,7 @@ module.exports = meta => {
   function ManagerBody() {
     const [images, setImages] = useIDB();
     const contextMenuObj = useMemo(() => {
-      const saveAndCopy = givenItem => [{
+      const saveAndCopy = givenItem => [givenItem.image.type !== 'image/gif' && {
         label: "Copy Image",
         action: async () => {
           try {
@@ -332,33 +332,20 @@ module.exports = meta => {
             BdApi.showToast("Failed to save Image. " + err, { type: 'error' });
           }
         }
-      }];
+      }].filter(Boolean);
       return {
         saveAndCopy,
         lazyCarousel: images.length && constants.nativeUI.lazyCarousel(images.map(img => ({
-          component: jsx(constants.nativeUI.imageModal, {
-            src: img.src,
-            original: img.src,
-            renderLinkComponent: e => jsx('div', { style: { display: 'flex', gap: 'inherit' } },
-              jsx(constants.nativeUI.Anchor, {
-                className: e.className,
-                onClick: async e => { e.stopPropagation(); e.preventDefault(); saveAndCopy(img)[0].action() }
-              }, 'Copy Image'),
-              jsx('div', {
-                className: e.className,
-                style: { pointerEvents: 'none', margin: '0px 5px' },
-              }, '|'),
-              jsx(constants.nativeUI.Anchor, {
-                className: e.className,
-                onClick: async e => { e.stopPropagation(); e.preventDefault(); saveAndCopy(img)[1].action() }
-              }, 'Save Image')
-            ),
-            renderForwardComponent: () => { },
-            width: img.width, height: img.height,
-            onContextMenu: e => ContextMenu.open(e, ContextMenu.buildMenu(saveAndCopy(img))),
-          }),
-          src: img.src
-        })))
+          url: img.src,
+          contentType: img.image.type,
+          srcIsAnimated: img.image.type === 'image/gif',
+          width: img.width, height: img.height, type: 'IMAGE',
+        })), {
+          onContextMenu: e => {
+            let img = saveAndCopy(images.find(img => img.src === e.target.src));
+            img && ContextMenu.open(e, ContextMenu.buildMenu(img))
+          },
+        })
       }
     }, [images]);
     const handleSelect = useCallback(index => {
@@ -1850,15 +1837,13 @@ module.exports = meta => {
           markupStyles: Webpack.getModule(Filters.byKeys("markup")),
           disabled: Webpack.getModule(Filters.byKeys("disabled", "labelRow")), // classes for disabled inputs
           layerContainerClass: Webpack.getModule(Filters.byKeys('layerContainer')), // class of Discord's nativelayer container
-          imageModal: Webpack.getModule(Filters.byKeys('modal', 'image')), // classes for image modal  
           originalLink: Webpack.getModule(Filters.byKeys('originalLink')), // class for image embed
           scrollbar: Webpack.getModule(Filters.byKeys('thin')), // classes for scrollable content
           separator: Webpack.getModule(Filters.byKeys('scroller', 'separator')), // classes for separator
           baseLayer: Webpack.getModule(Filters.byKeys('baseLayer', 'bg')), // class of Discord's base layer
           nativeUI: {
             ...Webpack.getModule(Filters.byKeys('FormSwitch', 'FormItem')), // native ui module
-            lazyCarousel: Object.values(Webpack.getModule(m => Object.values(m).some(filter([".entries()", ".src"])))).filter(filter([".entries()", ".src"]))[0], // Module for lazy carousel
-            imageModal: Object.values(Webpack.getModule(m => Object.values(m).some(filter([".MEDIA_MODAL_CLOSE"])))).filter(filter(['.MEDIA_MODAL_CLOSE']))[0],
+            lazyCarousel: Object.values(Webpack.getModule(m => Object.values(m).some(filter([".MEDIA_VIEWER", ".OPEN_MODAL"])))).filter(filter([".MEDIA_VIEWER", ".OPEN_MODAL"]))[0], // Module for lazy carousel
           }, // DiscordNative: Webpack.getByKeys('copyImage') // copyImage, saveImage
           settings: {
             ...defaultSettings,
