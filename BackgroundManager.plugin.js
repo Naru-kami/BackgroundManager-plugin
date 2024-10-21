@@ -1348,12 +1348,18 @@ module.exports = meta => {
   z-index: -1;
   isolation: isolate;
 }
+.BackgroundManager-bgContainer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(var(--BgManager-blur, 0px));
+}
 .BackgroundManager-bg {
   position: absolute;
   inset: 0;
   opacity: 0;
   background: calc(50% - var(--BgManager-position-x, 0%)) calc(50% - var(--BgManager-position-y, 0%)) / cover no-repeat fixed;
-  filter: grayscale(var(--BgManager-grayscale, 0%)) contrast(var(--BgManager-contrast, 100%)) saturate(var(--BgManager-saturation, 100%)) blur(var(--BgManager-blur, 0px));
+  filter: grayscale(var(--BgManager-grayscale, 0%)) contrast(var(--BgManager-contrast, 100%)) saturate(var(--BgManager-saturation, 100%));
   mix-blend-mode: plus-lighter;
   transition: opacity var(--BgManager-transition-duration, 0ms) ease-out;
 }
