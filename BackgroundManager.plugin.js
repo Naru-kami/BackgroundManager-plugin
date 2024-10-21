@@ -336,7 +336,8 @@ module.exports = meta => {
       return {
         saveAndCopy,
         lazyCarousel: images.length && constants.nativeUI.lazyCarousel(images.map(img => ({
-          url: img.src,
+          url: img.src, src: img.src, original: img.src, proxyUrl: img.src,
+          alt: img.image.name || 'unknown',
           contentType: img.image.type,
           srcIsAnimated: img.image.type === 'image/gif',
           width: img.width, height: img.height, type: 'IMAGE',
