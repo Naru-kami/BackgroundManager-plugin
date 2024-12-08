@@ -1738,11 +1738,11 @@ module.exports = meta => {
           originalBackground = false;
           setTimeout(() => {
             DOM.removeStyle('BackgroundManager-background');
-            DOM.addStyle('BackgroundManager-background', `${property.selector} {${property.property}: url('${src}') !important;}`);
+            DOM.addStyle('BackgroundManager-background', property.map(e => `${e.selector} {${e.property}: url('${src}') !important;}`).join('\n'));
           }, constants.settings.transition.duration)
         } else {
           DOM.removeStyle('BackgroundManager-background');
-          DOM.addStyle('BackgroundManager-background', `${property.selector} {${property.property}: url('${src}') !important;}`);
+          DOM.addStyle('BackgroundManager-background', property.map(e => `${e.selector} {${e.property}: url('${src}') !important;}`).join('\n'));
         }
       }
       i.src = src;
@@ -1760,53 +1760,56 @@ module.exports = meta => {
       domBG = [];
     }
     function setProperty(overwrite = true) {
-      const styleElement = document.querySelector('bd-head  bd-themes style:last-child');
-      if (!styleElement) return;
-      const sheet = [...document.styleSheets].find(sheet => sheet.ownerNode === styleElement);
-      if (!sheet) return;
-      const cssVariables = {};
+      const themes = document.querySelectorAll('bd-head  bd-themes style');
+      if (!themes?.length) return;
+      const foundProperties = [];
+      for (const theme of themes) {
+        const sheet = [...document.styleSheets].find(sheet => sheet.ownerNode === theme);
+        if (!sheet) continue;
+        const cssVariables = {};
 
-      // Iterate through the CSS rules in the stylesheet
-      for (const rule of sheet.cssRules) {
-        if (!rule || rule instanceof CSSImportRule || !(rule instanceof CSSStyleRule)) continue;
-        for (const customProperty of rule.style) {
-          if (customProperty.startsWith('--')) {
-            const value = rule.style.getPropertyValue(customProperty).trim();
-            if (value.startsWith('url')) {
-              if (!cssVariables[customProperty])
-                cssVariables[customProperty] = { value, selectors: [] };
-              cssVariables[customProperty].selectors.push(rule.selectorText || ':root');
+        // Iterate through the CSS rules in the stylesheet
+        for (const rule of sheet.cssRules) {
+          if (!rule || rule instanceof CSSImportRule || !(rule instanceof CSSStyleRule)) continue;
+          for (const customProperty of rule.style) {
+            if (customProperty.startsWith('--')) {
+              const value = rule.style.getPropertyValue(customProperty).trim();
+              if (value.startsWith('url')) {
+                if (!cssVariables[customProperty])
+                  cssVariables[customProperty] = { value, selectors: [] };
+                cssVariables[customProperty].selectors.push(rule.selectorText || ':root');
+              }
             }
           }
         }
-      }
-      if (!cssVariables) return;
-      let customProperty;
-      if (Object.keys(cssVariables).length === 1) {
-        customProperty = Object.keys(cssVariables)[0];
-      } else {
-        for (const key of Object.keys(cssVariables)) { // prioritize background, bg, backdrop
-          if (key.toLowerCase().includes('background') || key.toLowerCase().includes('bg') || key.toLowerCase().includes('wallpaper') || key.toLowerCase().includes('backdrop')) {
-            customProperty = key;
-            break;
-          }
-        }
-        if (!customProperty) {
-          for (const key of Object.keys(cssVariables)) { // if no variable is found, look for images.
-            if (key.toLowerCase().includes('image') || key.toLowerCase().includes('img')) {
+        if (!cssVariables) continue;
+        let customProperty;
+        block: if (Object.keys(cssVariables).length === 1) {
+          customProperty = Object.keys(cssVariables)[0];
+        } else {
+          for (const key of Object.keys(cssVariables)) { // prioritize background, bg, backdrop
+            if (['background', 'bg', 'wallpaper', 'backdrop'].some(e => key.toLowerCase().includes(e))) {
               customProperty = key;
-              break;
+              break block;
+            }
+          }
+          for (const key of Object.keys(cssVariables)) { // if no variable is found, look for images.
+            if (['image', 'img'].some(e => key.toLowerCase().includes(e))) {
+              customProperty = key;
+              break block;
             }
           }
         }
+        if (!customProperty) continue;
+        foundProperties.push({ property: customProperty, selector: cssVariables[customProperty].selectors[0] });
       }
-      if (!customProperty) return (property = null);
-      property = { property: customProperty, selector: cssVariables[customProperty].selectors[0] };
+      if (!foundProperties.length) return (property = null);
+      property = foundProperties;
       overwrite && setImageFromIDB(storedImages => {
         storedImages.forEach(image => {
           if (image.selected && image.src) {
             DOM.removeStyle('BackgroundManager-background');
-            DOM.addStyle('BackgroundManager-background', `${property.selector} {${property.property}: url('${image.src}') !important;}`);
+            DOM.addStyle('BackgroundManager-background', property.map(e => `${e.selector} {${e.property}: url('${image.src}') !important;}`).join('\n'));
           }
         })
       });
