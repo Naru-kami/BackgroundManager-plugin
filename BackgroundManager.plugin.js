@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 1.2.3
+ * @version 1.2.4
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -68,7 +68,6 @@ module.exports = meta => {
   function openDB(storeName) {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DATA_BASE_NAME);
-      // indexedDB.deleteDatabase('DATA_BASE_NAME') to remove whole database
 
       request.onupgradeneeded = event => {
         /** @type {IDBDatabase} db */
@@ -108,12 +107,12 @@ module.exports = meta => {
   };
 
   /**
-   * Utility function to save items to the store, ensuring sequential key paths.
+   * Utility function to save items to the store.
    * @param {IDBDatabase} db - The database instance.
    * @param {string} storeName - The name of the object store.
    * @param {ImageItem[]} newItems - The items to save.
    * @param {ImageItem[]} prevItems - The previous state of items.
-   * @returns {Promise<void>} A promise that resolves when the items are saved.
+   * @returns {Promise<void>}
    */
   function saveItems(db, storeName, newItems, prevItems) {
     return new Promise((resolve, reject) => {
@@ -123,9 +122,8 @@ module.exports = meta => {
       const newIds = new Set(newItems.map(item => item.id));
       const prevIds = new Set(prevItems.map(item => item.id));
 
-      // Add or update items
-      newItems.forEach((e, i) => {
-        e.id = i + 1; // Ensure sequential key paths
+      // Add/update items
+      newItems.forEach(e => {
         if (!prevIds.has(e.id)) {
           store.add(e);
         } else {
@@ -335,7 +333,7 @@ module.exports = meta => {
       }].filter(Boolean);
       return {
         saveAndCopy,
-        lazyCarousel: images.length && constants.nativeUI.lazyCarousel(images.map(img => ({
+        lazyCarousel: images.length && constants.lazyCarousel(images.map(img => ({
           url: img.src, src: img.src, original: img.src, proxyUrl: img.src,
           alt: img.image.name || 'unknown',
           contentType: img.image.type,
@@ -710,7 +708,7 @@ module.exports = meta => {
               note: 'Cross-fade animation between background images.',
               onChange: newVal => {
                 setSetting(prev => ({ ...prev, transition: { ...prev.transition, enabled: newVal } }));
-                viewTransition.bgContainer().style.setProperty('--BgManager-transition-duration', (newVal ? setting.transition.duration ?? 0 : 0) + 'ms');
+                viewTransition.bgContainer()?.style.setProperty('--BgManager-transition-duration', (newVal ? setting.transition.duration ?? 0 : 0) + 'ms');
               },
             }, 'Enable Background Transitions'),
             jsx(FormTextInput, {
@@ -722,7 +720,7 @@ module.exports = meta => {
               suffix: 'ms',
               onChange: newVal => {
                 setSetting(prev => ({ ...prev, transition: { ...prev.transition, duration: Number(newVal) } }));
-                viewTransition.bgContainer().style.setProperty('--BgManager-transition-duration', (setting.transition.enabled ? Number(newVal) ?? 0 : 0) + 'ms');
+                viewTransition.bgContainer()?.style.setProperty('--BgManager-transition-duration', (setting.transition.enabled ? Number(newVal) ?? 0 : 0) + 'ms');
               },
             })
           ],
@@ -760,38 +758,29 @@ module.exports = meta => {
           ],
         }),
         jsx('div', { role: 'separator', className: constants.separator.separator }),
-        jsx(constants.nativeUI.FormSection, {
-          title: 'Drop Area',
-          children: jsx(constants.nativeUI.FormSwitch, {
-            hideBorder: true,
-            value: setting.enableDrop,
-            note: "When enabled, the popout will move infront of Discord's native drop area. It will also disable the popout's focus trap to enable dragging.",
-            onChange: newVal => setSetting(prev => ({ ...prev, enableDrop: newVal })),
-          }, 'Enable Drop Area')
-        }),
-        jsx(constants.nativeUI.FormSection, {
-          title: 'CSS Variable',
-          children: jsx(constants.nativeUI.FormSwitch, {
-            hideBorder: true,
-            value: setting.overwriteCSS,
-            note: 'Auto detects and overwrites the custom property of the themes\' background image.',
-            onChange: newVal => {
-              setSetting(prev => ({ ...prev, overwriteCSS: newVal }));
-              newVal ? (themeObserver.start(), viewTransition.setProperty()) : themeObserver.stop();
-            },
-          }, "Overwrite theme's CSS variable")
-        }),
-        jsx(constants.nativeUI.FormSection, {
-          title: 'Context Menu',
-          children: jsx(constants.nativeUI.FormSwitch, {
-            hideBorder: true,
-            value: setting.addContextMenu,
-            onChange: newVal => {
-              setSetting(prev => ({ ...prev, addContextMenu: newVal }));
-              newVal ? contextMenuPatcher.patch() : contextMenuPatcher.unpatch();
-            },
-          }, 'Adds a context menu option on images')
-        }),
+        jsx(constants.nativeUI.FormSwitch, {
+          hideBorder: true,
+          value: setting.enableDrop,
+          note: "When enabled, the popout will move infront of Discord's native drop area. It will also disable the popout's focus trap to enable dragging.",
+          onChange: newVal => setSetting(prev => ({ ...prev, enableDrop: newVal })),
+        }, 'Enable Drop Area'),
+        jsx(constants.nativeUI.FormSwitch, {
+          hideBorder: true,
+          value: setting.overwriteCSS,
+          note: 'Auto detects and overwrites the custom property of the themes\' background image. If no custom Propery is found, the original Wallpaper will not be overwritten.',
+          onChange: newVal => {
+            setSetting(prev => ({ ...prev, overwriteCSS: newVal }));
+            newVal ? (themeObserver.start(), viewTransition.setProperty()) : themeObserver.stop();
+          },
+        }, "Overwrite theme's CSS variable"),
+        jsx(constants.nativeUI.FormSwitch, {
+          hideBorder: true,
+          value: setting.addContextMenu,
+          onChange: newVal => {
+            setSetting(prev => ({ ...prev, addContextMenu: newVal }));
+            newVal ? contextMenuPatcher.patch() : contextMenuPatcher.unpatch();
+          },
+        }, 'Adds a context menu option on images')
       ]
     })
   }
@@ -963,7 +952,7 @@ module.exports = meta => {
               prev.transition.enabled = !prev.transition.enabled;
               return prev;
             });
-            viewTransition.bgContainer().style.setProperty('--BgManager-transition-duration', (settings.transition.enabled ? settings.transition.duration ?? 0 : 0) + 'ms');
+            viewTransition.bgContainer()?.style.setProperty('--BgManager-transition-duration', (settings.transition.enabled ? settings.transition.duration ?? 0 : 0) + 'ms');
           }
         }, {
           label: "Transition Duration",
@@ -978,7 +967,7 @@ module.exports = meta => {
                 prev.transition.duration = Number(newVal);
                 return prev;
               });
-              viewTransition.bgContainer().style.setProperty('--BgManager-transition-duration', (settings.transition.enabled ? Number(newVal) ?? 0 : 0) + 'ms');
+              viewTransition.bgContainer()?.style.setProperty('--BgManager-transition-duration', (settings.transition.enabled ? Number(newVal) ?? 0 : 0) + 'ms');
             },
             suffix: " ms"
           }),
@@ -1293,7 +1282,7 @@ module.exports = meta => {
         // Render the component behind the search bar.
         args[0].toolbar.props.children.splice(-2, 0, jsx(PopoutComponent, { key: meta.slug }));
     })
-    forceRerenderToolbar();
+    forceRerenderElement('.' + constants.toolbarClasses.toolbar);
   }
 
   /** Cleanup when plugin is disabled */
@@ -1319,8 +1308,7 @@ module.exports = meta => {
     themeObserver.stop();
     viewTransition.destroy();
     // remove the icon
-    forceRerenderToolbar();
-    // document.getElementById(meta.slug)?.remove();
+    forceRerenderElement('.' + constants.toolbarClasses.toolbar);
     // unpatch contextmenu
     contextMenuPatcher.unpatch();
     // unpatch the toolbar
@@ -1592,7 +1580,10 @@ module.exports = meta => {
     return null;
   }
 
-  function forceRerenderToolbar() {
+  /** Force rerenders a given element, or the first found element that matches the given selector.
+   * @param {HTMLElement | string} element An HTMLElement or Selector
+   */
+  function forceRerenderElement(element) {
     // taken and refactored from Zerthox - https://github.com/Zerthox/BetterDiscord-Plugins/blob/8ae5b44c2fc29753336cc67f31b6b99ead5608d5/packages/dium/src/utils/react.ts#L189-L208
     const queryFiber = (fiber, callback) => {
       let count = 50, parent = fiber;
@@ -1616,8 +1607,8 @@ module.exports = meta => {
         resolve(false);
       }
     });
-    const toolbar = document.querySelector('.' + constants.toolbarClasses.toolbar);
-    toolbar ? forceFullRerender(BdApi.getInternalInstance(toolbar)) : console.warn('%c[BackgroundManager] %cCould not rerender toolbar', "color:#DBDCA6;font-weight:bold", "");
+    const node = element instanceof HTMLElement ? element : document.querySelector(element);
+    node ? forceFullRerender(BdApi.getInternalInstance(node)) : console.warn('%c[BackgroundManager] %cCould not rerender element', "color:#DBDCA6;font-weight:bold", "");
   }
 
   /** Returns the mime type of the image @param {Uint8Array} buffer The UInt8Array buffer */
@@ -1654,7 +1645,6 @@ module.exports = meta => {
           if (triggeredWhileHidden) return;
           else triggeredWhileHidden = true;
         }
-        console.log('%c[BackgroundManager] %cSlideshow interval', "color:#DBDCA6;font-weight:bold", "", constants.settings.slideshow.interval)
         setImageFromIDB(storedImages => {
           const mounted = document.querySelector('.BackgroundManager-gridWrapper');
           const currentIndex = storedImages.reduce((p, c, i) => c.selected ? i : p, null);
@@ -1704,41 +1694,68 @@ module.exports = meta => {
 
   /**  Controller for switching images */
   const viewTransition = function () {
-    let bgContainer, activeIndex = 0, domBG = [], property, originalBackground = true;
-    function create() {
-      bgContainer = document.createElement('div');
-      bgContainer.classList.add('BackgroundManager-bgContainer');
+    let bgContainer, activeIndex = 0, domBG = [], property, originalBackground = true, cleanupPatch, currentSrc, timer;
+    function applyProperties() {
       bgContainer.style.setProperty('--BgManager-transition-duration', (constants.settings.transition.enabled ? constants.settings.transition.duration ?? 0 : 0) + 'ms');
-      constants.settings.adjustment.xPosition && bgContainer.style.setProperty('--BgManager-position-x', constants.settings.adjustment.xPosition + '%');
-      constants.settings.adjustment.yPosition && bgContainer.style.setProperty('--BgManager-position-y', constants.settings.adjustment.yPosition + '%');
-      constants.settings.adjustment.dimming && bgContainer.style.setProperty('--BgManager-dimming', constants.settings.adjustment.dimming);
-      constants.settings.adjustment.blur && bgContainer.style.setProperty('--BgManager-blur', constants.settings.adjustment.blur + 'px');
-      constants.settings.adjustment.grayscale && bgContainer.style.setProperty('--BgManager-grayscale', constants.settings.adjustment.grayscale + '%');
-      constants.settings.adjustment.saturate !== 100 && bgContainer.style.setProperty('--BgManager-saturation', constants.settings.adjustment.saturate + '%');
-      constants.settings.adjustment.contrast !== 100 && bgContainer.style.setProperty('--BgManager-contrast', constants.settings.adjustment.contrast + '%');
-      const bg1 = document.createElement('div');
-      bg1.classList.add('BackgroundManager-bg');
-      const bg2 = document.createElement('div');
-      bg2.classList.add('BackgroundManager-bg');
-      domBG.push(bg1, bg2);
-      bgContainer.prepend(...domBG);
-      document.querySelector('.' + constants.baseLayer.bg).prepend(bgContainer);
+      constants.settings.adjustment.xPosition && bgContainer?.style.setProperty('--BgManager-position-x', constants.settings.adjustment.xPosition + '%');
+      constants.settings.adjustment.yPosition && bgContainer?.style.setProperty('--BgManager-position-y', constants.settings.adjustment.yPosition + '%');
+      constants.settings.adjustment.dimming && bgContainer?.style.setProperty('--BgManager-dimming', constants.settings.adjustment.dimming);
+      constants.settings.adjustment.blur && bgContainer?.style.setProperty('--BgManager-blur', constants.settings.adjustment.blur + 'px');
+      constants.settings.adjustment.grayscale && bgContainer?.style.setProperty('--BgManager-grayscale', constants.settings.adjustment.grayscale + '%');
+      constants.settings.adjustment.saturate !== 100 && bgContainer?.style.setProperty('--BgManager-saturation', constants.settings.adjustment.saturate + '%');
+      constants.settings.adjustment.contrast !== 100 && bgContainer?.style.setProperty('--BgManager-contrast', constants.settings.adjustment.contrast + '%');
+    }
+    // Use React component instead of DOM manipulation, as Discord sometimes removes those.
+    function baseLayerBg() {
+      const containerRef = useRef();
+      const bg0Ref = useRef();
+      const bg1Ref = useRef();
+      useEffect(() => {
+        bgContainer = containerRef.current;
+        domBG = [bg0Ref.current, bg1Ref.current];
+        applyProperties();
+        return () => {
+          bgContainer = null;
+          domBG = [];
+        }
+      }, []);
+      return jsx('div', {
+        ref: containerRef,
+        className: 'BackgroundManager-bgContainer',
+        children: [
+          jsx('div', { ref: bg0Ref, className: 'BackgroundManager-bg' + (activeIndex === 0 ? ' active' : ''), style: activeIndex === 0 && currentSrc ? { backgroundImage: 'linear-gradient(rgba(0,0,0,var(--BgManager-dimming,0)), rgba(0,0,0,var(--BgManager-dimming,0))), url(' + currentSrc + ')' } : null }),
+          jsx('div', { ref: bg1Ref, className: 'BackgroundManager-bg' + (activeIndex === 1 ? ' active' : ''), style: activeIndex === 1 && currentSrc ? { backgroundImage: 'linear-gradient(rgba(0,0,0,var(--BgManager-dimming,0)), rgba(0,0,0,var(--BgManager-dimming,0))), url(' + currentSrc + ')' } : null })
+        ]
+      })
+    }
+    function create() {
+      //  The actual targeted function to patch is in this module, but it's not exported ("renderArtisanalHack()" in class "R"):
+      //  -> BdApi.Webpack.getWithKey(BdApi.Webpack.Filters.byStrings(".fullScreenLayers.length", ".darkSidebar", ".getLayers()", ".DARK")).next().value
+      //  However, it's directly calling ThemeProvider, so I'm patching this instead and check for the correct className.
+      cleanupPatch = Patcher.after(meta.slug, constants.nativeUI, 'ThemeProvider', (_, __, returnVal) => {
+        if (returnVal.props?.children?.props?.className === constants.baseLayer.bg)
+          returnVal.props.children.props.children = jsx(baseLayerBg)
+      })
+      forceRerenderElement('.' + constants.baseLayer.bg);
     }
     /** @param {string} src  */
     function setImage(src) {
-      if (domBG.length !== 2) return;
       const i = new Image();
       i.onload = () => {
-        document.visibilityState === 'visible' && (activeIndex ^= 1);
-        domBG[activeIndex].style.backgroundImage = 'linear-gradient(rgba(0,0,0,var(--BgManager-dimming,0)), rgba(0,0,0,var(--BgManager-dimming,0))), url(' + src + ')';
-        domBG[activeIndex].classList.add('active');
-        domBG[activeIndex ^ 1].classList.remove('active');
+        currentSrc = src;
+        if (domBG.length === 2) {
+          document.visibilityState === 'visible' && (activeIndex ^= 1);
+          domBG[activeIndex].style.backgroundImage = 'linear-gradient(rgba(0,0,0,var(--BgManager-dimming,0)), rgba(0,0,0,var(--BgManager-dimming,0))), url(' + src + ')';
+          domBG[activeIndex].classList.add('active');
+          domBG[activeIndex ^ 1].classList.remove('active');
+        }
         if (!property || !constants.settings.overwriteCSS) return;
         if (originalBackground) {
           originalBackground = false;
-          setTimeout(() => {
+          timer = setTimeout(() => {
             DOM.removeStyle('BackgroundManager-background');
             DOM.addStyle('BackgroundManager-background', property.map(e => `${e.selector} {${e.property}: url('${src}') !important;}`).join('\n'));
+            timer = null;
           }, constants.settings.transition.duration)
         } else {
           DOM.removeStyle('BackgroundManager-background');
@@ -1753,10 +1770,14 @@ module.exports = meta => {
       DOM.removeStyle('BackgroundManager-background');
     }
     function destroy() {
-      domBG.forEach(e => e.remove());
-      bgContainer.remove();
-      originalBackground = true
+      cleanupPatch?.();
+      forceRerenderElement('.' + constants.baseLayer.bg);
+      timer && (clearTimeout(timer), timer = null);
+      originalBackground = true;
       DOM.removeStyle('BackgroundManager-background');
+      bgContainer = null;
+      currentSrc = null;
+      activeIndex = 0;
       domBG = [];
     }
     function setProperty(overwrite = true) {
@@ -1851,10 +1872,8 @@ module.exports = meta => {
           scrollbar: Webpack.getModule(Filters.byKeys('thin')), // classes for scrollable content
           separator: Webpack.getModule(Filters.byKeys('scroller', 'separator')), // classes for separator
           baseLayer: Webpack.getModule(Filters.byKeys('baseLayer', 'bg')), // class of Discord's base layer
-          nativeUI: {
-            ...Webpack.getModule(Filters.byKeys('FormSwitch', 'FormItem')), // native ui module
-            lazyCarousel: Object.values(Webpack.getModule(m => Object.values(m).some(filter([".MEDIA_VIEWER", ".OPEN_MODAL"])))).filter(filter([".MEDIA_VIEWER", ".OPEN_MODAL"]))[0], // Module for lazy carousel
-          }, // DiscordNative: Webpack.getByKeys('copyImage') // copyImage, saveImage
+          nativeUI: Webpack.getModule(Filters.byKeys('FormSwitch', 'FormItem')), // native ui module
+          lazyCarousel: Object.values(Webpack.getModule(m => Object.values(m).some(filter([".MEDIA_VIEWER", ".OPEN_MODAL"])))).filter(filter([".MEDIA_VIEWER", ".OPEN_MODAL"]))[0], // Module for lazy carousel
           settings: {
             ...defaultSettings,
             ...configs,
