@@ -333,18 +333,24 @@ module.exports = meta => {
       }].filter(Boolean);
       return {
         saveAndCopy,
-        lazyCarousel: images.length && constants.lazyCarousel(images.map(img => ({
-          url: img.src, src: img.src, original: img.src, proxyUrl: img.src,
-          alt: img.image.name || 'unknown',
-          contentType: img.image.type,
-          srcIsAnimated: img.image.type === 'image/gif',
-          width: img.width, height: img.height, type: 'IMAGE',
-        })), {
-          onContextMenu: e => {
-            let img = saveAndCopy(images.find(img => img.src === e.target.src));
-            img && ContextMenu.open(e, ContextMenu.buildMenu(img))
-          },
-        })
+        lazyCarousel: constants.lazyCarousel ? (givenItem) => {
+          try {
+            constants.lazyCarousel({
+              className: constants.imageCarouselClasses.forcedTransparency,
+              items: images.map(img => ({
+                url: img.src, src: img.src, proxyUrl: img.src,
+                original: false,
+                alt: img.image.name || 'unknown',
+                contentType: img.image.type,
+                srcIsAnimated: img.image.type === 'image/gif',
+                width: img.width, height: img.height, type: 'IMAGE',
+              })),
+              location: "Media Mosaic",
+              startingIndex: givenItem.id - 1,
+              onContextMenu: e => ContextMenu.open(e, ContextMenu.buildMenu(saveAndCopy(givenItem))),
+            })
+          } catch (err) { console.error(err) }
+        } : null
       }
     }, [images]);
     const handleSelect = useCallback(index => {
@@ -422,11 +428,13 @@ module.exports = meta => {
       item.selected && viewTransition.removeImage();
     }, [setImages, item.id, item.selected, item.src]);
     const handleContextMenu = useCallback(e => {
-      const ImageContextMenu = ContextMenu.buildMenu([{
-        label: "View Image",
-        action: e => contextMenuObj.lazyCarousel[item.src](e)
-      }, ...contextMenuObj.saveAndCopy(item)
-      ]);
+      const ImageContextMenu = ContextMenu.buildMenu([
+        contextMenuObj.lazyCarousel ? {
+          label: "View Image",
+          action: () => contextMenuObj.lazyCarousel(item)
+        } : undefined,
+        ...contextMenuObj.saveAndCopy(item)
+      ].filter(Boolean));
       ContextMenu.open(e, ImageContextMenu)
     }, [item.image, item.src, contextMenuObj]);
 
@@ -757,7 +765,7 @@ module.exports = meta => {
             }, 'Enable Shuffle')
           ],
         }),
-        jsx('div', { role: 'separator', className: constants.separator.separator }),
+        jsx('div', { role: 'separator', className: constants.separator.separator, style: { marginBottom: "1rem" } }),
         jsx(constants.nativeUI.FormSwitch, {
           hideBorder: true,
           value: setting.enableDrop,
@@ -780,7 +788,28 @@ module.exports = meta => {
             setSetting(prev => ({ ...prev, addContextMenu: newVal }));
             newVal ? contextMenuPatcher.patch() : contextMenuPatcher.unpatch();
           },
-        }, 'Adds a context menu option on images')
+        }, 'Adds a context menu option on images'),
+        jsx('div', { role: 'separator', className: constants.separator.separator, style: { marginBottom: "1rem" } }),
+        jsx(constants.nativeUI.Button, {
+          style: { marginLeft: "auto" },
+          color: constants.nativeUI.ButtonColors.RED,
+          onClick: () => {
+            BdApi.UI.showConfirmationModal(
+              "Delete Database",
+              "This will delete the delete the indexedDB database, including every Image saved in it.\n\nAre you sure you want to delete all your saved images?",
+              {
+                danger: true,
+                confirmText: "Yes, Delete",
+                onConfirm: () => {
+                  viewTransition.removeImage();
+                  slideShowManager.stop();
+                  setSetting(prev => ({ ...prev, slideshow: { ...prev.slideshow, enabled: false } }));
+                  indexedDB.deleteDatabase(DATA_BASE_NAME);
+                }
+              }
+            );
+          }
+        }, "Delete Database")
       ]
     })
   }
@@ -1264,25 +1293,29 @@ module.exports = meta => {
   /** Patches the button to the HeaderBar */
   function addButton() {
     if (constants.settings.addContextMenu) contextMenuPatcher.patch();
-    // patch image Modal to be able to show blobs as well
-    const filter2 = m => m instanceof Function && ['sourceWidth:', 'sourceHeight:'].every(s => m.toString().includes(s));
-    const getSrcModule = Webpack.getModule(m => Object.values(m).some(filter2));
-    const getSrc = [getSrcModule, Object.keys(getSrcModule).find(key => filter2(getSrcModule[key]))];
-    Patcher.after(meta.slug, ...getSrc, (_, args) => {
-      if (args[0].src.startsWith('blob:'))
-        return args[0].src;
-    })
-    // patch headerbar
-    const filter = module => module?.Icon && module.Title && module.toString().includes('section');
-    const HeaderBarModule = Webpack.getModule(m => Object.values(m).some(filter));
-    const HeaderBar = [HeaderBarModule, Object.keys(HeaderBarModule).find(key => filter(HeaderBarModule[key]))];
-    Patcher.before(meta.slug, ...HeaderBar, (_, args) => {
-      // Check if toolbar children exists and if its an Array. Also, check if our component is already there.
-      if (Array.isArray(args[0]?.toolbar?.props?.children) && !args[0].toolbar.props.children.some?.(e => e?.key === meta.slug))
-        // Render the component behind the search bar.
-        args[0].toolbar.props.children.splice(-2, 0, jsx(PopoutComponent, { key: meta.slug }));
-    })
-    forceRerenderElement('.' + constants.toolbarClasses.toolbar);
+    try {
+      // patch image Modal to be able to show blobs as well
+      const filter2 = m => m instanceof Function && ['sourceWidth:', 'sourceHeight:'].every(s => m.toString().includes(s));
+      const getSrcModule = Webpack.getModule(m => Object.values(m).some(filter2));
+      const getSrc = [getSrcModule, Object.keys(getSrcModule).find(key => filter2(getSrcModule[key]))];
+      Patcher.after(meta.slug, ...getSrc, (_, args) => {
+        if (args[0].src.startsWith('blob:'))
+          return args[0].src;
+      })
+    } catch (e) { console.error('%c[BackgroundManager]%c Cannot patch src module', "color:#DBDCA6;font-weight:bold", "") }
+    try {
+      // patch headerbar
+      const filter = module => module?.Icon && module.Title && module.toString().includes('section');
+      const HeaderBarModule = Webpack.getModule(m => Object.values(m).some(filter));
+      const HeaderBar = [HeaderBarModule, Object.keys(HeaderBarModule).find(key => filter(HeaderBarModule[key]))];
+      Patcher.before(meta.slug, ...HeaderBar, (_, args) => {
+        // Check if toolbar children exists and if its an Array. Also, check if our component is already there.
+        if (Array.isArray(args[0]?.toolbar?.props?.children) && !args[0].toolbar.props.children.some?.(e => e?.key === meta.slug))
+          // Render the component behind the search bar.
+          args[0].toolbar.props.children.splice(-2, 0, jsx(PopoutComponent, { key: meta.slug }));
+      })
+      forceRerenderElement('.' + constants.toolbarClasses.toolbar);
+    } catch (e) { console.error('%c[BackgroundManager]%c Cannot patch toolbar module', "color:#DBDCA6;font-weight:bold", "") }
   }
 
   /** Cleanup when plugin is disabled */
@@ -1665,7 +1698,7 @@ module.exports = meta => {
                 console.log('%c[BackgroundManager] %cImage updated on:', "color:#DBDCA6;font-weight:bold", "", new Date())
               }
             })
-          } else {
+          } else if (storedImages.length) {
             storedImages.forEach((e, i) => {
               if (!mounted) {
                 e.src && URL.revokeObjectURL(e.src);
@@ -1732,6 +1765,8 @@ module.exports = meta => {
       //  The actual targeted function to patch is in this module, but it's not exported ("renderArtisanalHack()" in class "R"):
       //  -> BdApi.Webpack.getWithKey(BdApi.Webpack.Filters.byStrings(".fullScreenLayers.length", ".darkSidebar", ".getLayers()", ".DARK")).next().value
       //  However, it's directly calling ThemeProvider, so I'm patching this instead and check for the correct className.
+      if (!constants.nativeUI?.ThemeProvider)
+        return console.error('%c[BackgroundManager]%c Cannot patch ThemeProvider', "color:#DBDCA6;font-weight:bold", "");
       cleanupPatch = Patcher.after(meta.slug, constants.nativeUI, 'ThemeProvider', (_, __, returnVal) => {
         if (returnVal.props?.children?.props?.className === constants.baseLayer.bg)
           returnVal.props.children.props.children = jsx(baseLayerBg)
@@ -1873,6 +1908,7 @@ module.exports = meta => {
           separator: Webpack.getModule(Filters.byKeys('scroller', 'separator')), // classes for separator
           baseLayer: Webpack.getModule(Filters.byKeys('baseLayer', 'bg')), // class of Discord's base layer
           nativeUI: Webpack.getModule(Filters.byKeys('FormSwitch', 'FormItem')), // native ui module
+          imageCarouselClasses: Webpack.getByKeys("carouselModal"), // classes for image carousel
           lazyCarousel: Object.values(Webpack.getModule(m => Object.values(m).some(filter([".MEDIA_VIEWER", ".OPEN_MODAL"])))).filter(filter([".MEDIA_VIEWER", ".OPEN_MODAL"]))[0], // Module for lazy carousel
           settings: {
             ...defaultSettings,
