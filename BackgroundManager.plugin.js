@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 1.2.5
+ * @version 1.2.6
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -646,23 +646,25 @@ module.exports = meta => {
       setOpen(op => !op);
     }, [setOpen]);
 
-    return jsx(constants.nativeUI.Popout, {
-      shouldShow: open,
-      animation: '1',
-      position: 'bottom',
-      align: 'right',
-      autoInvert: false,
-      spacing: 8,
-      renderPopout: () => jsx(ManagerComponent, { onRequestClose: () => setOpen(false) }),
-      children: (e, t) => {
-        return jsx(IconComponent, {
-          ...e,
-          id: meta.slug,
-          onClick: handleClick,
-          showTooltip: !t.isShown,
-        })
-      }
-    })
+    return jsx(ErrorBoundary, { fallback: "Internal component error" },
+      jsx(constants.nativeUI.Popout, {
+        shouldShow: open,
+        animation: '1',
+        position: 'bottom',
+        align: 'right',
+        autoInvert: false,
+        spacing: 8,
+        renderPopout: () => jsx(ManagerComponent, { onRequestClose: () => setOpen(false) }),
+        children: (e, t) => {
+          return jsx(IconComponent, {
+            ...e,
+            id: meta.slug,
+            onClick: handleClick,
+            showTooltip: !t.isShown,
+          })
+        }
+      })
+    )
   }
 
   function IconButton({ TooltipProps, ButtonProps, SvgProps }) {
@@ -707,64 +709,56 @@ module.exports = meta => {
 
     return jsx(Fragment, {
       children: [
-        jsx(constants.nativeUI.FormSection, {
-          title: 'Transitions',
-          children: [
-            jsx(constants.nativeUI.FormSwitch, {
-              hideBorder: true,
-              value: setting.transition.enabled,
-              note: 'Cross-fade animation between background images.',
-              onChange: newVal => {
-                setSetting(prev => ({ ...prev, transition: { ...prev.transition, enabled: newVal } }));
-                viewTransition.bgContainer()?.style.setProperty('--BgManager-transition-duration', (newVal ? setting.transition.duration ?? 0 : 0) + 'ms');
-              },
-            }, 'Enable Background Transitions'),
-            jsx(FormTextInput, {
-              disabled: !setting.transition.enabled,
-              type: 'number',
-              min: 1,
-              value: setting.transition.duration + '',
-              prefixElement: jsx(constants.nativeUI.FormText, { style: { flex: 1 }, className: constants.disabled.title }, 'Transition Duration'),
-              suffix: 'ms',
-              onChange: newVal => {
-                setSetting(prev => ({ ...prev, transition: { ...prev.transition, duration: Number(newVal) } }));
-                viewTransition.bgContainer()?.style.setProperty('--BgManager-transition-duration', (setting.transition.enabled ? Number(newVal) ?? 0 : 0) + 'ms');
-              },
-            })
-          ],
+        jsx(constants.nativeUI.FormTitle, { children: 'Transitions' }),
+        jsx(constants.nativeUI.FormSwitch, {
+          hideBorder: true,
+          value: setting.transition.enabled,
+          note: 'Cross-fade animation between background images.',
+          onChange: newVal => {
+            setSetting(prev => ({ ...prev, transition: { ...prev.transition, enabled: newVal } }));
+            viewTransition.bgContainer()?.style.setProperty('--BgManager-transition-duration', (newVal ? setting.transition.duration ?? 0 : 0) + 'ms');
+          },
+        }, 'Enable Background Transitions'),
+        jsx(FormTextInput, {
+          disabled: !setting.transition.enabled,
+          type: 'number',
+          min: 1,
+          value: setting.transition.duration + '',
+          prefixElement: jsx(constants.nativeUI.FormText, { style: { flex: 1 }, className: constants.disabled.title }, 'Transition Duration'),
+          suffix: 'ms',
+          onChange: newVal => {
+            setSetting(prev => ({ ...prev, transition: { ...prev.transition, duration: Number(newVal) } }));
+            viewTransition.bgContainer()?.style.setProperty('--BgManager-transition-duration', (setting.transition.enabled ? Number(newVal) ?? 0 : 0) + 'ms');
+          },
         }),
         jsx('div', { role: 'separator', className: constants.separator.separator }),
-        jsx(constants.nativeUI.FormSection, {
-          title: 'Slide Show',
-          children: [
-            jsx(constants.nativeUI.FormSwitch, {
-              hideBorder: true,
-              value: setting.slideshow.enabled,
-              onChange: newVal => {
-                setSetting(prev => ({ ...prev, slideshow: { ...prev.slideshow, enabled: newVal } }));
-                newVal ? slideShowManager.start() : slideShowManager.stop();
-              },
-            }, 'Enable Slideshow Mode'),
-            jsx(FormTextInput, {
-              disabled: !setting.slideshow.enabled,
-              type: 'number',
-              min: 0.5,
-              value: setting.slideshow.interval / 1000 / 60 + '',
-              prefixElement: jsx(constants.nativeUI.FormText, { style: { flex: 1 }, className: constants.disabled.title }, 'Slideshow Interval'),
-              suffix: 'min',
-              onChange: newVal => {
-                setSetting(prev => ({ ...prev, slideshow: { ...prev.slideshow, interval: Number(newVal) * 1000 * 60 } }));
-                slideShowManager.start();
-              },
-            }),
-            jsx(constants.nativeUI.FormSwitch, {
-              disabled: !setting.slideshow.enabled,
-              hideBorder: true,
-              value: setting.slideshow.shuffle,
-              onChange: newVal => setSetting(prev => ({ ...prev, slideshow: { ...prev.slideshow, shuffle: newVal } })),
-            }, 'Enable Shuffle')
-          ],
+        jsx(constants.nativeUI.FormTitle, { children: 'Slide Show' }),
+        jsx(constants.nativeUI.FormSwitch, {
+          hideBorder: true,
+          value: setting.slideshow.enabled,
+          onChange: newVal => {
+            setSetting(prev => ({ ...prev, slideshow: { ...prev.slideshow, enabled: newVal } }));
+            newVal ? slideShowManager.start() : slideShowManager.stop();
+          },
+        }, 'Enable Slideshow Mode'),
+        jsx(FormTextInput, {
+          disabled: !setting.slideshow.enabled,
+          type: 'number',
+          min: 0.5,
+          value: setting.slideshow.interval / 1000 / 60 + '',
+          prefixElement: jsx(constants.nativeUI.FormText, { style: { flex: 1 }, className: constants.disabled.title }, 'Slideshow Interval'),
+          suffix: 'min',
+          onChange: newVal => {
+            setSetting(prev => ({ ...prev, slideshow: { ...prev.slideshow, interval: Number(newVal) * 1000 * 60 } }));
+            slideShowManager.start();
+          },
         }),
+        jsx(constants.nativeUI.FormSwitch, {
+          disabled: !setting.slideshow.enabled,
+          hideBorder: true,
+          value: setting.slideshow.shuffle,
+          onChange: newVal => setSetting(prev => ({ ...prev, slideshow: { ...prev.slideshow, shuffle: newVal } })),
+        }, 'Enable Shuffle'),
         jsx('div', { role: 'separator', className: constants.separator.separator, style: { marginBottom: "1rem" } }),
         jsx(constants.nativeUI.FormSwitch, {
           hideBorder: true,
@@ -876,7 +870,6 @@ module.exports = meta => {
     const handlSliderChange = useCallback(newValue => {
       newValue = Number(newValue.toFixed(props.decimals ?? 0));
       setSliderValue(newValue);
-      props.onSlide?.(newValue);
     }, [setSliderValue]);
 
     const onTextCommit = useCallback(() => {
@@ -954,11 +947,13 @@ module.exports = meta => {
           onMouseLeave: onSliderCommit,
           style: { gridColumn: 'span 2' },
           children: jsx(constants.nativeUI.MenuSliderControl, {
-            value: sliderValue,
-            renderValue: e => Number(e.toFixed(props.decimals ?? 0)) + props.suffix,
+            mini: true,
+            initialValue: sliderValue,
+            onValueRender: e => Number(e.toFixed(props.decimals ?? 0)) + props.suffix,
             minValue: props.minValue,
             maxValue: props.maxValue,
-            onChange: handlSliderChange,
+            onValueChange: handlSliderChange,
+            asValueChanges: props.onSlide
           })
         })
       ]
@@ -1179,8 +1174,7 @@ module.exports = meta => {
               onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-contrast', Math.min(300, Math.max(0, newVal)) + '%'),
               suffix: ' %'
             }),
-          }
-          ]
+          }]
         }
       ]);
       ContextMenu.open(e, MyContextMenu);
@@ -1298,24 +1292,26 @@ module.exports = meta => {
       const filter2 = m => m instanceof Function && ['sourceWidth:', 'sourceHeight:'].every(s => m.toString().includes(s));
       const getSrcModule = Webpack.getModule(m => Object.values(m).some(filter2));
       const getSrc = [getSrcModule, Object.keys(getSrcModule).find(key => filter2(getSrcModule[key]))];
+      if (!getSrc) throw new Error("Cannot find src module");
       Patcher.after(meta.slug, ...getSrc, (_, args) => {
         if (args[0].src.startsWith('blob:'))
           return args[0].src;
       })
-    } catch (e) { console.error('%c[BackgroundManager]%c Cannot patch src module', "color:#DBDCA6;font-weight:bold", "") }
-    try {
-      // patch headerbar
-      const filter = module => module?.Icon && module.Title && module.toString().includes('section');
-      const HeaderBarModule = Webpack.getModule(m => Object.values(m).some(filter));
-      const HeaderBar = [HeaderBarModule, Object.keys(HeaderBarModule).find(key => filter(HeaderBarModule[key]))];
-      Patcher.before(meta.slug, ...HeaderBar, (_, args) => {
-        // Check if toolbar children exists and if its an Array. Also, check if our component is already there.
-        if (Array.isArray(args[0]?.toolbar?.props?.children) && !args[0].toolbar.props.children.some?.(e => e?.key === meta.slug))
-          // Render the component behind the search bar.
-          args[0].toolbar.props.children.splice(-2, 0, jsx(PopoutComponent, { key: meta.slug }));
-      })
-      forceRerenderElement('.' + constants.toolbarClasses.toolbar);
-    } catch (e) { console.error('%c[BackgroundManager]%c Cannot patch toolbar module', "color:#DBDCA6;font-weight:bold", "") }
+    } catch (e) {
+      console.error('%c[BackgroundManager]%c ', e, "color:#DBDCA6;font-weight:bold", "")
+    }
+    // patch headerbar
+    const filter = module => module?.Icon && module.Title && module.toString().includes('section');
+    const HeaderBarModule = Webpack.getModule(m => Object.values(m).some(filter));
+    const HeaderBar = [HeaderBarModule, Object.keys(HeaderBarModule).find(key => filter(HeaderBarModule[key]))];
+    if (!HeaderBar) throw new Error("Cannot find toolbar module");
+    Patcher.before(meta.slug, ...HeaderBar, (_, args) => {
+      // Check if toolbar children exists and if its an Array. Also, check if our component is already there.
+      if (Array.isArray(args[0]?.toolbar?.props?.children) && !args[0].toolbar.props.children.some?.(e => e?.key === meta.slug))
+        // Render the component behind the search bar.
+        args[0].toolbar.props.children.splice(-2, 0, jsx(PopoutComponent, { key: meta.slug }));
+    })
+    forceRerenderElement('.' + constants.toolbarClasses.toolbar);
   }
 
   /** Cleanup when plugin is disabled */
@@ -1341,7 +1337,7 @@ module.exports = meta => {
     themeObserver.stop();
     viewTransition.destroy();
     // remove the icon
-    forceRerenderElement('.' + constants.toolbarClasses.toolbar);
+    constants.toolbarClasses?.toolbar && forceRerenderElement('.' + constants.toolbarClasses.toolbar);
     // unpatch contextmenu
     contextMenuPatcher.unpatch();
     // unpatch the toolbar
@@ -1765,9 +1761,11 @@ module.exports = meta => {
       //  The actual targeted function to patch is in this module, but it's not exported ("renderArtisanalHack()" in class "R"):
       //  -> BdApi.Webpack.getWithKey(BdApi.Webpack.Filters.byStrings(".fullScreenLayers.length", ".darkSidebar", ".getLayers()", ".DARK")).next().value
       //  However, it's directly calling ThemeProvider, so I'm patching this instead and check for the correct className.
-      if (!constants.nativeUI?.ThemeProvider)
-        return console.error('%c[BackgroundManager]%c Cannot patch ThemeProvider', "color:#DBDCA6;font-weight:bold", "");
-      cleanupPatch = Patcher.after(meta.slug, constants.nativeUI, 'ThemeProvider', (_, __, returnVal) => {
+      if (!constants.nativeUI?.ThemeProvider) {
+        console.error('%c[BackgroundManager]%c Cannot patch ThemeProvider', "color:#DBDCA6;font-weight:bold", "");
+        throw new Error("Cannot read properties of undefined (reading 'ThemeProvider')");
+      }
+      cleanupPatch = Patcher.after(meta.slug, constants.nativeUI.ThemeProvider.module, constants.nativeUI.ThemeProvider.key, (_, __, returnVal) => {
         if (returnVal.props?.children?.props?.className === constants.baseLayer.bg)
           returnVal.props.children.props.children = jsx(baseLayerBg)
       })
@@ -1806,7 +1804,7 @@ module.exports = meta => {
     }
     function destroy() {
       cleanupPatch?.();
-      forceRerenderElement('.' + constants.baseLayer.bg);
+      constants.baseLayer?.bg && forceRerenderElement('.' + constants.baseLayer.bg);
       timer && (clearTimeout(timer), timer = null);
       originalBackground = true;
       DOM.removeStyle('BackgroundManager-background');
@@ -1890,13 +1888,29 @@ module.exports = meta => {
     return { start, stop }
   }();
 
+  /**
+   * Gets an exported function from strings, and returns its reference, its key, and the modules where it resides.
+   * @param {string[]} strings
+   * The strings that should be included in the function.
+   * @param {Record<string, any>} [givenModule]
+   * If provided, searches the function within a given module.
+   * @returns { {module: Record<string, any>, key: string, component: any} }
+  */
+  function getComponentByStrings(strings, givenModule = undefined) {
+    const filt = m => strings.every(s => m.toString().includes(s));
+    const module = givenModule ?? Webpack.getModule(m => Object.values(m).some(filt));
+    const key = module ? Object.keys(module).find(key => filt(module[key])) : undefined;
+    const component = module && key ? module[key] : undefined;
+    return { module, key, component }
+  }
+
   return {
     start: async () => {
       try {
         !Object.keys(constants).length && console.log('%c[BackgroundManager] %cInitialized', "color:#DBDCA6;font-weight:bold", "")
         const configs = Data.load(meta.slug, "settings");
-        let filter = strings => m => m instanceof Function && strings.every(s => m.toString().includes(s));
-        Object.assign(constants, {
+        const mangledButton = getComponentByStrings([".FILLED", ".BRAND", ".announce(null", ".intl.string("])
+        const modules = {
           toolbarClasses: Webpack.getModule(Filters.byKeys("title", "toolbar")), // classes for toolbar
           messagesPopoutClasses: Webpack.getModule(Filters.byKeys("messagesPopout")), // classes for messages popout
           textStyles: Webpack.getModule(Filters.byKeys("defaultColor")), // calsses for general text styles
@@ -1907,17 +1921,35 @@ module.exports = meta => {
           scrollbar: Webpack.getModule(Filters.byKeys('thin')), // classes for scrollable content
           separator: Webpack.getModule(Filters.byKeys('scroller', 'separator')), // classes for separator
           baseLayer: Webpack.getModule(Filters.byKeys('baseLayer', 'bg')), // class of Discord's base layer
-          nativeUI: Webpack.getModule(Filters.byKeys('FormSwitch', 'FormItem')), // native ui module
           imageCarouselClasses: Webpack.getByKeys("carouselModal"), // classes for image carousel
-          lazyCarousel: Object.values(Webpack.getModule(m => Object.values(m).some(filter([".MEDIA_VIEWER", ".OPEN_MODAL"])))).filter(filter([".MEDIA_VIEWER", ".OPEN_MODAL"]))[0], // Module for lazy carousel
+          lazyCarousel: getComponentByStrings([".MEDIA_VIEWER", ".OPEN_MODAL"]).component, // Module for lazy carousel
           settings: {
-            ...defaultSettings,
-            ...configs,
+            ...defaultSettings, ...configs,
             transition: { ...defaultSettings.transition, ...configs?.transition },
             slideshow: { ...defaultSettings.slideshow, ...configs?.slideshow },
             adjustment: { ...defaultSettings.adjustment, ...configs?.adjustment }
-          }
-        });
+          },
+          nativeUI: mangledButton ? { // native ui module
+            Button: mangledButton.component,
+            ButtonColors: mangledButton.component.Colors,
+            FocusRing: getComponentByStrings(["FocusRing was given a focusTarget"], mangledButton.module).component,
+            FormTitle: getComponentByStrings(["errorSeparator", "defaultMargin", "defaultColor"], mangledButton.module).component,
+            FormSwitch: getComponentByStrings(["hideBorder", "tooltipNote", "focusProps"], mangledButton.module).component,
+            FormText: getComponentByStrings([".DEFAULT", "selectable"], mangledButton.module).component,
+            MenuSliderControl: getComponentByStrings(["stickToMarkers", "sortedMarkers", "markerPositions"], mangledButton.module).component,
+            Popout: getComponentByStrings(["onRequestOpen", "onRequestClose", "nudgeAlignIntoViewport"], mangledButton.module).component,
+            Spinner: getComponentByStrings(["wanderingCubes", "stopAnimation", "spinningCircle"], mangledButton.module).component,
+            Switch: getComponentByStrings(["Switch", ".colors.REDESIGN_INPUT_CONTROL_SELECTED", "onMouseLeave"], mangledButton.module).component,
+            TextInput: getComponentByStrings(["inputPrefix", "inputClassName", "getIsUnderFlowing"], mangledButton.module).component,
+            ThemeProvider: getComponentByStrings(["disableAdaptiveTheme", "disable-adaptive-theme"], mangledButton.module),
+            Tooltip: getComponentByStrings(["getDerivedStateFromProps", "shouldShowTooltip", "setDomElement"], mangledButton.module).component,
+            useFocusLock: getComponentByStrings(["keyboardModeEnabled", "disableReturnRef", "attachTo"], mangledButton.module).component,
+          } : undefined,
+        }
+        if (!Object.values(modules).every(Boolean) || !Object.values(modules.nativeUI).every(Boolean)) {
+          throw new Error("Some modules are missing.");
+        }
+        Object.assign(constants, modules);
         generateCSS();
         // On startup, refresh objectURL of stored selected image. Wait until changes are saved.
         await setImageFromIDB(storedImages =>
@@ -1941,6 +1973,7 @@ module.exports = meta => {
         addButton();
       } catch (e) {
         console.error(e);
+        BdApi.showToast("Could not start BackgroundManager", { type: 'error' });
         stop();
       }
     },
