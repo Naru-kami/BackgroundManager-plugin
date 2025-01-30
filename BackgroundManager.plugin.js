@@ -6,7 +6,7 @@
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
-const { React, Webpack, Webpack: { Filters }, Patcher, DOM, ContextMenu, Data } = BdApi;
+const { React, Webpack, UI, Webpack: { Filters }, Patcher, DOM, ContextMenu, Data } = BdApi;
 
 /** @type {typeof import("react")} */
 const { useState, useEffect, useRef, useCallback, useId, useMemo, createElement: jsx, Fragment } = React;
@@ -289,9 +289,9 @@ module.exports = meta => {
               const arrayBuffer = await pngBlob.arrayBuffer()
               DiscordNative.clipboard.copyImage(new Uint8Array(arrayBuffer), givenItem.src)
             }
-            BdApi.showToast("Image copied to clipboard!", { type: 'success' });
+            UI.showToast("Image copied to clipboard!", { type: 'success' });
           } catch (err) {
-            BdApi.showToast("Failed to copy Image. " + err, { type: 'error' });
+            UI.showToast("Failed to copy Image. " + err, { type: 'error' });
           }
         }
       }, {
@@ -324,10 +324,10 @@ module.exports = meta => {
               }
             }
             DiscordNative.fileManager.saveWithDialog(arrayBuffer, url).then(() => {
-              BdApi.showToast("Saved Image!", { type: 'success' });
+              UI.showToast("Saved Image!", { type: 'success' });
             });
           } catch (err) {
-            BdApi.showToast("Failed to save Image. " + err, { type: 'error' });
+            UI.showToast("Failed to save Image. " + err, { type: 'error' });
           }
         }
       }].filter(Boolean);
@@ -531,11 +531,11 @@ module.exports = meta => {
         files.forEach(file => {
           if (!file.data || !['png', 'jpg', 'jpeg', 'jpe', 'jfif', 'exif', 'bmp', 'dib', 'rle', 'gif', 'avif', 'webp', 'svg', 'ico'].includes(file.filename?.split('.').pop()?.toLowerCase())) {
             console.warn('Could not upload ' + file.filename + '. Data is empty, or ' + file.filename + ' is not an image.');
-            return BdApi.showToast('Could not upload ' + file.filename + '. Data is empty, or ' + file.filename + ' is not an image.', { type: 'error' });
+            return UI.showToast('Could not upload ' + file.filename + '. Data is empty, or ' + file.filename + ' is not an image.', { type: 'error' });
           }
           handleFileTransfer(new Blob([file.data], { type: getImageType(file.data) }));
         });
-      }).catch(e => { console.error(e); BdApi.showToast('Could not upload image. ' + e, { type: 'error' }) });
+      }).catch(e => { console.error(e); UI.showToast('Could not upload image. ' + e, { type: 'error' }) });
     }, [setImages]);
     const handleInput = useCallback(e => {
       e.preventDefault?.();
@@ -570,7 +570,7 @@ module.exports = meta => {
             res.blob() :
             Promise.reject('Dropped item is not an image.')
         ).then(handleFileTransfer).catch(err => {
-          BdApi.showToast('Cannot get image data. ' + err, { type: 'error' });
+          UI.showToast('Cannot get image data. ' + err, { type: 'error' });
           console.error('Status: ', err)
         }).finally(() => {
           setProcessing(prev => prev.filter(t => t !== timeStamp));
@@ -788,7 +788,7 @@ module.exports = meta => {
           style: { marginLeft: "auto" },
           color: constants.nativeUI.ButtonColors.RED,
           onClick: () => {
-            BdApi.UI.showConfirmationModal(
+            UI.showConfirmationModal(
               "Delete Database",
               "This will delete the delete the indexedDB database, including every Image saved in it.\n\nAre you sure you want to delete all your saved images?",
               {
@@ -1260,13 +1260,13 @@ module.exports = meta => {
           image.onload = () => setImageFromIDB(storedImages => {
             storedImages.push({ id: storedImages.length + 1, image: blub, width: image.width, height: image.height, selected: false, src: null });
             URL.revokeObjectURL(image.src);
-            BdApi.showToast("Successfully added to BackgroundManager", { type: 'success' });
+            UI.showToast("Successfully added to BackgroundManager", { type: 'success' });
           });
           image.onerror = () => URL.revokeObjectURL(image.src);
           image.src = URL.createObjectURL(blub);
         } catch (err) {
           console.error('Status ', err)
-          BdApi.showToast("Failed to add to BackgroundManager. Status " + err, { type: 'error' });
+          UI.showToast("Failed to add to BackgroundManager. Status " + err, { type: 'error' });
         };
       }, icon: s => jsx('svg', {
         className: s.className,
@@ -1637,7 +1637,7 @@ module.exports = meta => {
       }
     });
     const node = element instanceof HTMLElement ? element : document.querySelector(element);
-    node ? forceFullRerender(BdApi.getInternalInstance(node)) : console.warn('%c[BackgroundManager] %cCould not rerender element', "color:#DBDCA6;font-weight:bold", "");
+    node ? forceFullRerender(BdApi.ReactUtils.getInternalInstance(node)) : console.warn('%c[BackgroundManager] %cCould not rerender element', "color:#DBDCA6;font-weight:bold", "");
   }
 
   /** Returns the mime type of the image @param {Uint8Array} buffer The UInt8Array buffer */
@@ -1761,7 +1761,7 @@ module.exports = meta => {
       //  The actual targeted function to patch is in this module, but it's not exported ("renderArtisanalHack()" in class "R"):
       //  -> BdApi.Webpack.getWithKey(BdApi.Webpack.Filters.byStrings(".fullScreenLayers.length", ".darkSidebar", ".getLayers()", ".DARK")).next().value
       //  However, it's directly calling ThemeProvider, so I'm patching this instead and check for the correct className.
-      if (!constants.nativeUI?.ThemeProvider) {
+      if (!constants.nativeUI?.ThemeProvider?.component) {
         console.error('%c[BackgroundManager]%c Cannot patch ThemeProvider', "color:#DBDCA6;font-weight:bold", "");
         throw new Error("Cannot read properties of undefined (reading 'ThemeProvider')");
       }
@@ -1973,7 +1973,7 @@ module.exports = meta => {
         addButton();
       } catch (e) {
         console.error(e);
-        BdApi.showToast("Could not start BackgroundManager", { type: 'error' });
+        UI.showToast("Could not start BackgroundManager", { type: 'error' });
         stop();
       }
     },
