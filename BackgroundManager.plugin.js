@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 1.2.6
+ * @version 1.2.7
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -203,6 +203,18 @@ module.exports = meta => {
     return [items, setItems];
   };
 
+  // Similar to useState, but also returns a ref with the current state. Useful when you need the most recent state when unmounting.
+  function useStateWithRef(initial) {
+    const [state, setState] = useState(initial);
+    const ref = useRef(state);
+    const setStateAndRef = useCallback((newState) => {
+      ref.current = newState instanceof Function ? newState(ref.current) : newState;
+      setState(newState);
+    }, [setState]);
+
+    return [state, setStateAndRef, ref];
+  }
+
   // Components
   function IconComponent({ onClick, ...props }) {
     const handleKeyDown = useCallback(e => {
@@ -249,7 +261,7 @@ module.exports = meta => {
         window.removeEventListener('keydown', handleKeyDown, true);
       }
     }, []);
-    !constants.settings.enableDrop && constants.nativeUI.useFocusLock(mainComponent);
+    !constants.settings.enableDrop && constants.nativeUI.useFocusLock?.(mainComponent);
 
     return jsx('div', {
       ref: mainComponent,
@@ -375,14 +387,14 @@ module.exports = meta => {
     return jsx('div', {
       className: [constants.messagesPopoutClasses.messageGroupWrapper, constants.markupStyles.markup, constants.messagesPopoutClasses.messagesPopout].join(' '),
       style: { display: "grid", gridTemplateRows: 'auto auto 1fr', overflow: 'hidden', border: '0' },
-    },
-      jsx(ErrorBoundary, { fallback: 'Internal Component Error. Background Manager crashed.' },
+      children: [
         jsx(InputComponent, { setImages }),
         jsx('div', {
           role: 'separator',
           className: constants.separator.separator,
           style: { marginRight: '0.75rem' }
-        }), images.length ? jsx('div', {
+        }),
+        images.length ? jsx('div', {
           style: { paddingInline: '0.25rem 0.75rem', display: 'flex', justifyContent: 'space-between' },
           className: constants.textStyles['text-sm/semibold'],
           children: [
@@ -400,18 +412,19 @@ module.exports = meta => {
               }
             }) : null
           ],
-        }) : null, jsx('div', {
+        }) : null,
+        jsx('div', {
           className: ['BackgroundManager-gridWrapper', constants.scrollbar.thin].join(' '),
-        }, images.map(e => jsx(ImageComponent, {
-          key: e.src,
-          item: e,
-          contextMenuObj,
-          setImages,
-          onSelect: handleSelect
-        }))
-        )
-      )
-    )
+          children: images.map(e => jsx(ImageComponent, {
+            key: e.src,
+            item: e,
+            contextMenuObj,
+            setImages,
+            onSelect: handleSelect
+          }))
+        })
+      ]
+    })
   }
 
   function ImageComponent({ item, onSelect, contextMenuObj, setImages }) {
@@ -646,25 +659,23 @@ module.exports = meta => {
       setOpen(op => !op);
     }, [setOpen]);
 
-    return jsx(ErrorBoundary, { fallback: "Internal component error" },
-      jsx(constants.nativeUI.Popout, {
-        shouldShow: open,
-        animation: '1',
-        position: 'bottom',
-        align: 'right',
-        autoInvert: false,
-        spacing: 8,
-        renderPopout: () => jsx(ManagerComponent, { onRequestClose: () => setOpen(false) }),
-        children: (e, t) => {
-          return jsx(IconComponent, {
-            ...e,
-            id: meta.slug,
-            onClick: handleClick,
-            showTooltip: !t.isShown,
-          })
-        }
-      })
-    )
+    return jsx(constants.nativeUI.Popout, {
+      shouldShow: open,
+      animation: '1',
+      position: 'bottom',
+      align: 'right',
+      autoInvert: false,
+      spacing: 8,
+      renderPopout: () => jsx(ManagerComponent, { onRequestClose: () => setOpen(false) }),
+      children: (e, t) => {
+        return jsx(IconComponent, {
+          ...e,
+          id: meta.slug,
+          onClick: handleClick,
+          showTooltip: !t.isShown,
+        })
+      }
+    })
   }
 
   function IconButton({ TooltipProps, ButtonProps, SvgProps }) {
@@ -719,16 +730,15 @@ module.exports = meta => {
             viewTransition.bgContainer()?.style.setProperty('--BgManager-transition-duration', (newVal ? setting.transition.duration ?? 0 : 0) + 'ms');
           },
         }, 'Enable Background Transitions'),
-        jsx(FormTextInput, {
+        jsx(FormNumberInput, {
           disabled: !setting.transition.enabled,
-          type: 'number',
           min: 1,
           value: setting.transition.duration + '',
-          prefixElement: jsx(constants.nativeUI.FormText, { style: { flex: 1 }, className: constants.disabled.title }, 'Transition Duration'),
+          label: 'Transition Duration',
           suffix: 'ms',
           onChange: newVal => {
-            setSetting(prev => ({ ...prev, transition: { ...prev.transition, duration: Number(newVal) } }));
-            viewTransition.bgContainer()?.style.setProperty('--BgManager-transition-duration', (setting.transition.enabled ? Number(newVal) ?? 0 : 0) + 'ms');
+            setSetting(prev => ({ ...prev, transition: { ...prev.transition, duration: newVal } }));
+            viewTransition.bgContainer()?.style.setProperty('--BgManager-transition-duration', (setting.transition.enabled ? newVal ?? 0 : 0) + 'ms');
           },
         }),
         jsx('div', { role: 'separator', className: constants.separator.separator }),
@@ -741,15 +751,14 @@ module.exports = meta => {
             newVal ? slideShowManager.start() : slideShowManager.stop();
           },
         }, 'Enable Slideshow Mode'),
-        jsx(FormTextInput, {
+        jsx(FormNumberInput, {
           disabled: !setting.slideshow.enabled,
-          type: 'number',
           min: 0.5,
           value: setting.slideshow.interval / 1000 / 60 + '',
-          prefixElement: jsx(constants.nativeUI.FormText, { style: { flex: 1 }, className: constants.disabled.title }, 'Slideshow Interval'),
+          label: 'Slideshow Interval',
           suffix: 'min',
           onChange: newVal => {
-            setSetting(prev => ({ ...prev, slideshow: { ...prev.slideshow, interval: Number(newVal) * 1000 * 60 } }));
+            setSetting(prev => ({ ...prev, slideshow: { ...prev.slideshow, interval: newVal * 1000 * 60 } }));
             slideShowManager.start();
           },
         }),
@@ -782,11 +791,11 @@ module.exports = meta => {
             setSetting(prev => ({ ...prev, addContextMenu: newVal }));
             newVal ? contextMenuPatcher.patch() : contextMenuPatcher.unpatch();
           },
-        }, 'Adds a context menu option on images'),
+        }, 'Add context menu option on images'),
         jsx('div', { role: 'separator', className: constants.separator.separator, style: { marginBottom: "1rem" } }),
         jsx(constants.nativeUI.Button, {
           style: { marginLeft: "auto" },
-          color: constants.nativeUI.ButtonColors.RED,
+          color: constants.nativeUI.Button.Colors.RED,
           onClick: () => {
             UI.showConfirmationModal(
               "Delete Database",
@@ -808,153 +817,156 @@ module.exports = meta => {
     })
   }
 
-  function FormTextInput({ value, onChange, validation, ...props }) {
+  function FormNumberInput({ value, onChange, label, suffix, ...restProps }) {
+    const [val, setVal] = useState(value + '');
     const lastVal = useRef(value);
-    const [val, setVal] = useState(value);
+    const inputRef = useRef(null);
+
     const handleChange = useCallback(newVal => { setVal(newVal) }, [setVal]);
     const handleBlur = useCallback(() => {
-      if (props.type === 'number') {
-        const clampedVal = Number(val) ? Math.max(Number(val), props.min ?? Number(val)) + '' : Number(lastVal.current);
-        lastVal.current = clampedVal;
-        onChange(clampedVal);
-        setVal(clampedVal + '');
-      } else {
-        if (!(validation instanceof Function) || validation(val)) {
-          onChange(val)
-          lastVal.current = val;
-        } else {
-          setVal(lastVal.current);
-        };
-      }
+      lastVal.current = !isNaN(Number(val)) ? Math.max(Number(val), restProps.min ?? Number(val)) : lastVal.current;
+      onChange(lastVal.current);
+      setVal(lastVal.current + '');
     }, [val, onChange, lastVal.current, setVal]);
-
     const handleWheel = useCallback(e => {
-      if (props.type === 'number' && e.deltaY)
-        setVal(newValue => { newValue = (Number(newValue.replace(',', '.')) - Math.sign(e.deltaY)).toFixed(Math.ceil(Math.abs(Math.log10(Math.abs(props.min ?? 1))))); return Math.max(Number(newValue), props.min ?? Number(newValue)) + '' });
-    }, [props.type, setVal]);
+      if (e.deltaY && inputRef.current === document.activeElement) {
+        e.preventDefault?.();
+        setVal(oldValue => {
+          oldValue = (Number(oldValue) - Math.sign(e.deltaY)).toFixed(Math.ceil(Math.abs(Math.log10(Math.abs(restProps.min ?? 1)))));
+          return Math.max(Number(oldValue), restProps.min ?? Number(oldValue)) + '';
+        });
+      }
+    }, [setVal]);
     const handleKeyDown = useCallback(e => {
       e.key === 'Enter' && e.target?.blur?.();
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         e.stopPropagation?.();
-        if (props.type === 'number' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
           e.preventDefault?.();
           const delta = e.key === 'ArrowUp' ? 1 : -1;
-          setVal(newValue => { newValue = (Number(newValue.replace(',', '.')) + delta).toFixed(Math.ceil(Math.abs(Math.log10(Math.abs(props.min ?? 1))))); return Math.max(Number(newValue), props.min ?? Number(newValue)) + '' });
+          setVal(newValue => { newValue = (Number(newValue) + delta).toFixed(Math.ceil(Math.abs(Math.log10(Math.abs(restProps.min ?? 1))))); return Math.max(Number(newValue), restProps.min ?? Number(newValue)) + '' });
         }
       }
-    }, [props.type, setVal]);
+    }, [setVal]);
 
-    return jsx('div', {
-      style: { display: 'grid', gridTemplateColumns: '1fr auto', width: '100%', alignItems: 'center' }
-    }, jsx(constants.nativeUI.TextInput, {
-      ...props,
-      value: val,
-      className: 'BackgroundManager-SettingsTextInput' + (props.disabled ? ' ' + constants.disabled.disabled : ''),
-      onChange: handleChange,
-      onBlur: handleBlur,
-      onKeyDown: handleKeyDown,
-      onWheel: handleWheel,
-    }), props.type === "number" && props.suffix ? jsx('span', { style: { marginLeft: '0.25rem', marginBottom: '20px' }, className: constants.textStyles.defaultColor }, props.suffix) : null
-    )
+    useEffect(() => {
+      inputRef.current?.addEventListener('wheel', handleWheel);
+      return () => inputRef.current?.removeEventListener('wheel', handleWheel);
+    }, [handleWheel]);
+
+    return jsx('label', {
+      style: { display: 'grid', gridTemplateColumns: '1fr auto', width: '100%', alignItems: 'center' },
+      children: [
+        jsx(constants.nativeUI.TextInput, {
+          ...restProps,
+          inputRef,
+          type: 'number',
+          value: val,
+          className: 'BackgroundManager-SettingsTextInput' + (restProps.disabled ? ' ' + constants.disabled.disabled : ''),
+          prefixElement: jsx(constants.nativeUI.FormText, { style: { flex: 1 }, className: constants.disabled.title }, label ?? ''),
+          onChange: handleChange,
+          onBlur: handleBlur,
+          onKeyDown: handleKeyDown
+        }), suffix ? jsx('span', { style: { marginLeft: '0.25rem', marginBottom: '20px' }, className: constants.textStyles.defaultColor }, suffix) : null
+      ]
+    })
   }
 
-  function MenuInput({ value, onChange, ...props }) {
-    const [textValue, setTextValue] = useState(value + '');
-    const [sliderValue, setSliderValue] = useState(value);
-    const oldValue = useRef(value + '');
+  function MenuNumberInput({ value, onChange, ...restProps }) {
+    const [textValue, setTextValue, textStateRef] = useStateWithRef(value + '');
+    const [sliderValue, setSliderValue, sliderStateRef] = useStateWithRef(value);
+    const oldValue = useRef(value);
     const ID = useId();
 
-    const handleTextChange = useCallback(newValue => {
-      setTextValue(props.type === 'number' ? Math.max(Number(newValue.replace(',', '.')), props.minValue ?? Number(newValue.replace(',', '.'))) + '' : newValue)
-    }, [setTextValue]);
-    const handlSliderChange = useCallback(newValue => {
-      newValue = Number(newValue.toFixed(props.decimals ?? 0));
+    const handleTextChange = useCallback(newValue => { setTextValue(newValue) }, [setTextValue]);
+    const handleSliderChange = useCallback(newValue => {
+      newValue = Number(newValue.toFixed(restProps.decimals ?? 0));
+      restProps.onSlide?.(newValue);
       setSliderValue(newValue);
-    }, [setSliderValue]);
+    }, [setSliderValue, restProps.onSlide]);
 
     const onTextCommit = useCallback(() => {
-      if (props.validation) {
-        if (props.validation(textValue)) {
-          setSliderValue(textValue);
-          onChange(textValue);
-          oldValue.current = textValue;
-        } else {
-          setTextValue(oldValue.current);
-        }
-      } else {
-        props.type === 'number' && setTextValue(Math.max(Number(textValue), props.minValue ?? Number(textValue)) + '');
-        setSliderValue(Math.max(Number(textValue), props.minValue ?? Number(textValue)));
-        onChange(props.type === 'number' ? Math.max(Number(textValue), props.minValue ?? Number(textValue)) : textValue);
-      }
-    }, [onChange, setSliderValue, textValue, oldValue, setTextValue]);
+      oldValue.current = !isNaN(Number(textValue)) ? Math.max(Number(textValue), restProps.minValue ?? Number(textValue)) : oldValue.current;
+      setTextValue(oldValue.current + '');
+      setSliderValue(oldValue.current);
+      onChange(oldValue.current);
+    }, [onChange, setSliderValue, textValue, setTextValue]);
     const handleKeyDown = useCallback(e => {
       e.key === 'Enter' && e.target?.blur?.();
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         e.stopPropagation?.();
-        if (props.type === 'number' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
           e.preventDefault?.();
-          const delta = e.key === 'ArrowUp' ? 10 * (props.decimals ? Math.pow(10, -1 * props.decimals) : 0.1) : -10 * (props.decimals ? Math.pow(10, -1 * props.decimals) : 0.1);
-          setTextValue(val => { val = (Number(val.replace(',', '.')) + delta).toFixed(props.decimals ?? 0); return Math.max(Number(val), props.minValue ?? Number(val)) + '' });
+          const delta = (e.key === 'ArrowUp' ? 10 : -10) * (restProps.decimals ? Math.pow(10, -1 * restProps.decimals) : 0.1);
+          setTextValue(val => {
+            val = (Number(val) + delta).toFixed(restProps.decimals ?? 0);
+            return Math.max(Number(val), restProps.minValue ?? Number(val)) + '';
+          });
         }
       }
-    }, [props.type, setTextValue]);
+    }, [setTextValue]);
     const handleWheel = useCallback(e => {
-      if (props.type === 'number' && e.deltaY) {
-        const delta = e.deltaY < 0 ? 10 * (props.decimals ? Math.pow(10, -1 * props.decimals) : 0.1) : -10 * (props.decimals ? Math.pow(10, -1 * props.decimals) : 0.1);
-        setTextValue(val => { val = (Number(val.replace(',', '.')) + delta).toFixed(props.decimals ?? 0); return Math.max(Number(val), props.minValue ?? Number(val)) + '' });
+      if (e.deltaY) {
+        const delta = (e.deltaY < 0 ? 10 : -10) * (restProps.decimals ? Math.pow(10, -1 * restProps.decimals) : 0.1);
+        setTextValue(val => {
+          val = (Number(val) + delta).toFixed(restProps.decimals ?? 0);
+          return Math.max(Number(val), restProps.minValue ?? Number(val)) + '';
+        });
       }
-    }, [props.type, setTextValue]);
-    const onSliderCommit = useCallback(e => {
-      if (e.type === 'mouseleave' && e.buttons !== 1) return;
-      setTextValue(sliderValue + '');
-      onChange(sliderValue)
-    }, [onChange, setTextValue, sliderValue]);
+    }, [setTextValue]);
+    const onSliderCommit = useCallback(newValue => {
+      const fixedValue = Number(newValue.toFixed(restProps.decimals ?? 0));
+      setTextValue(fixedValue + '');
+      onChange(fixedValue)
+    }, [onChange, setTextValue]);
+
+    useEffect(() => () => { // component might unmount while user changes slider values
+      Number(textStateRef.current) != sliderStateRef.current && onChange(sliderStateRef.current);
+    }, []);
 
     return jsx('div', {
       style: {
-        display: 'grid', gap: '0.5rem 1rem', maxWidth: '240px', cursor: props.disabled ? 'not-allowed' : null,
-        gridTemplateColumns: props.type === 'number' ? '3fr 2fr' : 'auto auto',
+        display: 'grid', maxWidth: '15rem', cursor: restProps.disabled ? 'not-allowed' : null
       },
       className: [constants.separator.item, constants.separator.labelContainer].join(' '),
       children: [
-        jsx('label', {
-          htmlFor: ID,
-          children: props.label,
-          style: { justifySelf: 'start', cursor: props.disabled ? 'not-allowed' : 'inherit' },
-          className: [constants.separator.label, (props.disabled ? constants.separator.disabled : '')].join(' '),
-        }),
         jsx('div', {
           style: { display: 'flex', gap: '0.25rem', alignItems: 'center' },
           children: [
+            jsx('label', {
+              htmlFor: ID,
+              children: restProps.label,
+              style: {
+                marginRight: 'auto', paddingRight: '0.75rem',
+                cursor: restProps.disabled ? 'not-allowed' : 'inherit',
+                flex: '1 0 calc(60% - .5rem)'
+              },
+              className: [constants.separator.label, (restProps.disabled ? constants.separator.disabled : '')].join(' '),
+            }),
             jsx(constants.nativeUI.TextInput, {
               value: textValue,
-              type: props.type ?? 'number',
-              inputClassName: !props.type === "number" ? null : "BackgroundManager-NumberInput",
-              disabled: props.disabled,
+              type: 'number',
+              inputClassName: "BackgroundManager-NumberInput",
+              disabled: restProps.disabled,
               id: ID,
               onChange: handleTextChange,
               onBlur: onTextCommit,
               onKeyDown: handleKeyDown,
               onWheel: handleWheel,
             }),
-            props.type === 'number' && props.suffix ? jsx('span', { children: props.suffix }) : null
+            restProps.suffix ? jsx('span', { children: restProps.suffix }) : null
           ]
         }),
-        props.type !== 'number' ? null : jsx('div', {
-          className: props.disabled ? constants.separator.disabled : '',
-          disabled: props.disabled,
-          onClick: onSliderCommit,
-          onMouseLeave: onSliderCommit,
-          style: { gridColumn: 'span 2' },
-          children: jsx(constants.nativeUI.MenuSliderControl, {
-            mini: true,
-            initialValue: sliderValue,
-            onValueRender: e => Number(e.toFixed(props.decimals ?? 0)) + props.suffix,
-            minValue: props.minValue,
-            maxValue: props.maxValue,
-            onValueChange: handlSliderChange,
-            asValueChanges: props.onSlide
-          })
+        jsx(constants.nativeUI.MenuSliderControl, {
+          mini: true,
+          disabled: restProps.disabled,
+          initialValue: sliderValue,
+          onValueRender: e => Number(e.toFixed(restProps.decimals ?? 0)) + (restProps.suffix ?? ''),
+          minValue: restProps.minValue,
+          maxValue: restProps.maxValue,
+          onValueChange: onSliderCommit,
+          asValueChanges: handleSliderChange,
+          keyboardStep: restProps.decimals ? Math.pow(10, -1 * restProps.decimals + 1) : null
         })
       ]
     })
@@ -981,11 +993,11 @@ module.exports = meta => {
         }, {
           label: "Transition Duration",
           type: "custom",
-          render: () => jsx(MenuInput, {
+          render: () => jsx(ErrorBoundary, null, jsx(MenuNumberInput, {
             disabled: !settings.transition.enabled,
             label: "Transition Duration",
             value: settings.transition.duration,
-            type: 'number', minValue: 0, maxValue: 3000,
+            minValue: 0, maxValue: 3000,
             onChange: newVal => {
               setSettings(prev => {
                 prev.transition.duration = Number(newVal);
@@ -994,7 +1006,7 @@ module.exports = meta => {
               viewTransition.bgContainer()?.style.setProperty('--BgManager-transition-duration', (settings.transition.enabled ? Number(newVal) ?? 0 : 0) + 'ms');
             },
             suffix: " ms"
-          }),
+          })),
         }, {
           type: 'group',
           items: [{
@@ -1009,11 +1021,11 @@ module.exports = meta => {
           }, {
             label: "Slideshow Interval",
             type: "custom",
-            render: () => jsx(MenuInput, {
+            render: () => jsx(ErrorBoundary, null, jsx(MenuNumberInput, {
               disabled: !settings.slideshow.enabled,
               label: "Slideshow Interval",
               value: settings.slideshow.interval / 6e4,
-              type: 'number', minValue: 0.5, maxValue: 120,
+              minValue: 0.5, maxValue: 120,
               decimals: 1,
               onChange: newVal => {
                 let oldValue;
@@ -1025,7 +1037,7 @@ module.exports = meta => {
                 if (oldValue !== newVal * 6e4) slideShowManager.start();
               },
               suffix: " min"
-            }),
+            })),
           }, {
             label: "Shuffle Slideshow",
             type: 'toggle',
@@ -1065,10 +1077,10 @@ module.exports = meta => {
           items: [{
             label: "x-Position",
             type: "custom",
-            render: () => jsx(MenuInput, {
+            render: () => jsx(ErrorBoundary, null, jsx(MenuNumberInput, {
               label: "x-Position",
               value: settings.adjustment.xPosition,
-              type: 'number', minValue: -50, maxValue: 50,
+              minValue: -50, maxValue: 50,
               decimals: 0,
               onChange: newVal => setSettings(prev => {
                 prev.adjustment.xPosition = Math.min(50, Math.max(-50, newVal));
@@ -1077,14 +1089,14 @@ module.exports = meta => {
               }),
               onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-position-x', Math.min(50, Math.max(-50, newVal)) + '%'),
               suffix: ' %'
-            }),
+            })),
           }, {
             label: "y-Position",
             type: "custom",
-            render: () => jsx(MenuInput, {
+            render: () => jsx(ErrorBoundary, null, jsx(MenuNumberInput, {
               label: "y-Position",
               value: settings.adjustment.yPosition,
-              type: 'number', minValue: -50, maxValue: 50,
+              minValue: -50, maxValue: 50,
               decimals: 0,
               onChange: newVal => setSettings(prev => {
                 prev.adjustment.yPosition = Math.min(50, Math.max(-50, newVal));
@@ -1093,14 +1105,14 @@ module.exports = meta => {
               }),
               onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-position-y', Math.min(50, Math.max(-50, newVal)) + '%'),
               suffix: ' %'
-            }),
+            })),
           }, { type: 'separator' }, {
             label: 'Dimming',
             type: "custom",
-            render: () => jsx(MenuInput, {
+            render: () => jsx(ErrorBoundary, null, jsx(MenuNumberInput, {
               label: "Dimming",
               value: settings.adjustment.dimming,
-              type: 'number', minValue: 0, maxValue: 1,
+              minValue: 0, maxValue: 1,
               decimals: 2,
               onChange: newVal => setSettings(prev => {
                 prev.adjustment.dimming = newVal;
@@ -1109,14 +1121,14 @@ module.exports = meta => {
               }),
               onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-dimming', newVal),
               suffix: ''
-            }),
+            })),
           }, {
             label: "Blur",
             type: "custom",
-            render: () => jsx(MenuInput, {
+            render: () => jsx(ErrorBoundary, null, jsx(MenuNumberInput, {
               label: "Blur",
               value: settings.adjustment.blur,
-              type: 'number', minValue: 0, maxValue: 100,
+              minValue: 0, maxValue: 100,
               decimals: 0,
               onChange: newVal => setSettings(prev => {
                 prev.adjustment.blur = Math.min(100, Math.max(0, newVal));
@@ -1125,14 +1137,14 @@ module.exports = meta => {
               }),
               onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-blur', Math.min(100, Math.max(0, newVal)) + 'px'),
               suffix: ' px'
-            }),
+            })),
           }, {
             label: "Grayscale",
             type: "custom",
-            render: () => jsx(MenuInput, {
+            render: () => jsx(ErrorBoundary, null, jsx(MenuNumberInput, {
               label: "Grayscale",
               value: settings.adjustment.grayscale,
-              type: 'number', minValue: 0, maxValue: 100,
+              minValue: 0, maxValue: 100,
               decimals: 0,
               onChange: newVal => setSettings(prev => {
                 prev.adjustment.grayscale = Math.min(100, Math.max(0, newVal));
@@ -1141,14 +1153,14 @@ module.exports = meta => {
               }),
               onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-grayscale', Math.min(100, Math.max(0, newVal)) + '%'),
               suffix: ' %'
-            }),
+            })),
           }, {
             label: "Saturate",
             type: "custom",
-            render: () => jsx(MenuInput, {
+            render: () => jsx(ErrorBoundary, null, jsx(MenuNumberInput, {
               label: "Saturation",
               value: settings.adjustment.saturate,
-              type: 'number', minValue: 0, maxValue: 300,
+              minValue: 0, maxValue: 300,
               decimals: 0,
               onChange: newVal => setSettings(prev => {
                 prev.adjustment.saturate = Math.min(300, Math.max(0, newVal));
@@ -1157,14 +1169,14 @@ module.exports = meta => {
               }),
               onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-saturation', Math.min(300, Math.max(0, newVal)) + '%'),
               suffix: ' %'
-            }),
+            })),
           }, {
             label: "Contrast",
             type: "custom",
-            render: () => jsx(MenuInput, {
+            render: () => jsx(ErrorBoundary, null, jsx(MenuNumberInput, {
               label: "Contrast",
               value: settings.adjustment.contrast,
-              type: 'number', minValue: 0, maxValue: 300,
+              minValue: 0, maxValue: 300,
               decimals: 0,
               onChange: newVal => setSettings(prev => {
                 prev.adjustment.contrast = Math.min(300, Math.max(0, newVal));
@@ -1173,7 +1185,7 @@ module.exports = meta => {
               }),
               onSlide: newVal => viewTransition.bgContainer()?.style.setProperty('--BgManager-contrast', Math.min(300, Math.max(0, newVal)) + '%'),
               suffix: ' %'
-            }),
+            })),
           }]
         }
       ]);
@@ -1289,7 +1301,7 @@ module.exports = meta => {
     if (constants.settings.addContextMenu) contextMenuPatcher.patch();
     try {
       // patch image Modal to be able to show blobs as well
-      const filter2 = m => m instanceof Function && ['sourceWidth:', 'sourceHeight:'].every(s => m.toString().includes(s));
+      const filter2 = m => m instanceof Function && (str => ['sourceWidth:', 'sourceHeight:'].every(s => str.includes(s)))(m.toString());
       const getSrcModule = Webpack.getModule(m => Object.values(m).some(filter2));
       const getSrc = [getSrcModule, Object.keys(getSrcModule).find(key => filter2(getSrcModule[key]))];
       if (!getSrc) throw new Error("Cannot find src module");
@@ -1309,7 +1321,9 @@ module.exports = meta => {
       // Check if toolbar children exists and if its an Array. Also, check if our component is already there.
       if (Array.isArray(args[0]?.toolbar?.props?.children) && !args[0].toolbar.props.children.some?.(e => e?.key === meta.slug))
         // Render the component behind the search bar.
-        args[0].toolbar.props.children.splice(-2, 0, jsx(PopoutComponent, { key: meta.slug }));
+        args[0].toolbar.props.children.splice(-2, 0, jsx(ErrorBoundary, {
+          children: jsx(PopoutComponent), key: meta.slug
+        }));
     })
     forceRerenderElement('.' + constants.toolbarClasses.toolbar);
   }
@@ -1356,8 +1370,9 @@ module.exports = meta => {
 .BackgroundManager-SettingsTextInput input::-webkit-inner-spin-button {
   display: none;
 }
-.${constants.baseLayer.bg} {
+#app-mount .${constants.baseLayer.bg} {
   isolation: isolate;
+  display: block;
 }
 .BackgroundManager-bgContainer {
   position: absolute;
@@ -1466,7 +1481,7 @@ module.exports = meta => {
   position: relative;
   border-radius: .25rem;
   background-color: #0000;
-  flex: 1 0 calc(50% - 0.25rem);
+  flex: 0 0 calc(50% - 0.25rem);
   aspect-ratio: 16 / 9;
   outline: 2px solid transparent;
   padding: 0;
@@ -1480,7 +1495,7 @@ module.exports = meta => {
   object-fit: cover;
   min-height: 100%;
   min-width: 100%;
-  animation: fade-in 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  animation: fade-in 250ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .BackgroundManager-imageWrapper:hover > .BackgroundManager-deleteButton,
 .BackgroundManager-deleteButton:focus-visible {
@@ -1547,6 +1562,7 @@ module.exports = meta => {
       { value: 1073741824, symbol: " GiB" },
       { value: 1048576, symbol: " MiB" },
       { value: 1024, symbol: " KiB" },
+      { value: 1, symbol: " B" },
     ];
     for (const unit of units) {
       if (num >= unit.value) {
@@ -1579,18 +1595,21 @@ module.exports = meta => {
   }
 
   class ErrorBoundary extends React.Component {
-    state = { hasError: false }
+    constructor(props) {
+      super(props);
+      this.state = { hasError: false };
+    }
 
     static getDerivedStateFromError(error) {
       return { hasError: true };
     }
 
-    ComponentDidCatch(error, info) {
+    componentDidCatch(error, info) {
       console.error(error, info);
     }
 
     render() {
-      return this.state.hasError ? this.props.fallback : this.props.children;
+      return this.state.hasError ? jsx('div', { style: { color: '#f03' } }, 'Component Error') : this.props.children;
     }
   }
 
@@ -1761,11 +1780,14 @@ module.exports = meta => {
       //  The actual targeted function to patch is in this module, but it's not exported ("renderArtisanalHack()" in class "R"):
       //  -> BdApi.Webpack.getWithKey(BdApi.Webpack.Filters.byStrings(".fullScreenLayers.length", ".darkSidebar", ".getLayers()", ".DARK")).next().value
       //  However, it's directly calling ThemeProvider, so I'm patching this instead and check for the correct className.
-      if (!constants.nativeUI?.ThemeProvider?.component) {
-        console.error('%c[BackgroundManager]%c Cannot patch ThemeProvider', "color:#DBDCA6;font-weight:bold", "");
-        throw new Error("Cannot read properties of undefined (reading 'ThemeProvider')");
+      const nativeUI = Webpack.getModule(m => m.ConfirmModal);
+      const ThemeProviderKey = nativeUI && Object.keys(nativeUI).filter((key) => (source =>
+        ['gradient:', '"disable-adaptive-theme":'].every(str => source.includes(str))
+      )(nativeUI[key].toString()))[0];
+      if (!ThemeProviderKey) {
+        throw new Error("Cannot patch ThemeProvider");
       }
-      cleanupPatch = Patcher.after(meta.slug, constants.nativeUI.ThemeProvider.module, constants.nativeUI.ThemeProvider.key, (_, __, returnVal) => {
+      cleanupPatch = Patcher.after(meta.slug, nativeUI, ThemeProviderKey, (_, __, returnVal) => {
         if (returnVal.props?.children?.props?.className === constants.baseLayer.bg)
           returnVal.props.children.props.children = jsx(baseLayerBg)
       })
@@ -1773,29 +1795,25 @@ module.exports = meta => {
     }
     /** @param {string} src  */
     function setImage(src) {
-      const i = new Image();
-      i.onload = () => {
-        currentSrc = src;
-        if (domBG.length === 2) {
-          document.visibilityState === 'visible' && (activeIndex ^= 1);
-          domBG[activeIndex].style.backgroundImage = 'linear-gradient(rgba(0,0,0,var(--BgManager-dimming,0)), rgba(0,0,0,var(--BgManager-dimming,0))), url(' + src + ')';
-          domBG[activeIndex].classList.add('active');
-          domBG[activeIndex ^ 1].classList.remove('active');
-        }
-        if (!property || !constants.settings.overwriteCSS) return;
-        if (originalBackground) {
-          originalBackground = false;
-          timer = setTimeout(() => {
-            DOM.removeStyle('BackgroundManager-background');
-            DOM.addStyle('BackgroundManager-background', property.map(e => `${e.selector} {${e.property}: url('${src}') !important;}`).join('\n'));
-            timer = null;
-          }, constants.settings.transition.duration)
-        } else {
+      currentSrc = src;
+      if (domBG.length === 2) {
+        document.visibilityState === 'visible' && (activeIndex ^= 1);
+        domBG[activeIndex].style.backgroundImage = 'linear-gradient(rgba(0,0,0,var(--BgManager-dimming,0)), rgba(0,0,0,var(--BgManager-dimming,0))), url(' + src + ')';
+        domBG[activeIndex].classList.add('active');
+        domBG[activeIndex ^ 1].classList.remove('active');
+      }
+      if (!property || !constants.settings.overwriteCSS) return;
+      if (originalBackground) {
+        originalBackground = false;
+        timer = setTimeout(() => {
           DOM.removeStyle('BackgroundManager-background');
           DOM.addStyle('BackgroundManager-background', property.map(e => `${e.selector} {${e.property}: url('${src}') !important;}`).join('\n'));
-        }
+          timer = null;
+        }, constants.settings.transition.duration)
+      } else {
+        DOM.removeStyle('BackgroundManager-background');
+        DOM.addStyle('BackgroundManager-background', property.map(e => `${e.selector} {${e.property}: url('${src}') !important;}`).join('\n'));
       }
-      i.src = src;
     }
     function removeImage() {
       domBG.forEach(e => e.classList.remove('active'));
@@ -1888,28 +1906,11 @@ module.exports = meta => {
     return { start, stop }
   }();
 
-  /**
-   * Gets an exported function from strings, and returns its reference, its key, and the modules where it resides.
-   * @param {string[]} strings
-   * The strings that should be included in the function.
-   * @param {Record<string, any>} [givenModule]
-   * If provided, searches the function within a given module.
-   * @returns { {module: Record<string, any>, key: string, component: any} }
-  */
-  function getComponentByStrings(strings, givenModule = undefined) {
-    const filt = m => strings.every(s => m.toString().includes(s));
-    const module = givenModule ?? Webpack.getModule(m => Object.values(m).some(filt));
-    const key = module ? Object.keys(module).find(key => filt(module[key])) : undefined;
-    const component = module && key ? module[key] : undefined;
-    return { module, key, component }
-  }
-
   return {
     start: async () => {
       try {
         !Object.keys(constants).length && console.log('%c[BackgroundManager] %cInitialized', "color:#DBDCA6;font-weight:bold", "")
         const configs = Data.load(meta.slug, "settings");
-        const mangledButton = getComponentByStrings([".FILLED", ".BRAND", ".announce(null", ".intl.string("])
         const modules = {
           toolbarClasses: Webpack.getModule(Filters.byKeys("title", "toolbar")), // classes for toolbar
           messagesPopoutClasses: Webpack.getModule(Filters.byKeys("messagesPopout")), // classes for messages popout
@@ -1922,31 +1923,28 @@ module.exports = meta => {
           separator: Webpack.getModule(Filters.byKeys('scroller', 'separator')), // classes for separator
           baseLayer: Webpack.getModule(Filters.byKeys('baseLayer', 'bg')), // class of Discord's base layer
           imageCarouselClasses: Webpack.getByKeys("carouselModal"), // classes for image carousel
-          lazyCarousel: getComponentByStrings([".MEDIA_VIEWER", ".OPEN_MODAL"]).component, // Module for lazy carousel
+          lazyCarousel: Object.values(Webpack.getBySource(".MEDIA_VIEWER", ".OPEN_MODAL"))[0],  // Module for lazy carousel
           settings: {
             ...defaultSettings, ...configs,
             transition: { ...defaultSettings.transition, ...configs?.transition },
             slideshow: { ...defaultSettings.slideshow, ...configs?.slideshow },
             adjustment: { ...defaultSettings.adjustment, ...configs?.adjustment }
           },
-          nativeUI: mangledButton ? { // native ui module
-            Button: mangledButton.component,
-            ButtonColors: mangledButton.component.Colors,
-            FocusRing: getComponentByStrings(["FocusRing was given a focusTarget"], mangledButton.module).component,
-            FormTitle: getComponentByStrings(["errorSeparator", "defaultMargin", "defaultColor"], mangledButton.module).component,
-            FormSwitch: getComponentByStrings(["hideBorder", "tooltipNote", "focusProps"], mangledButton.module).component,
-            FormText: getComponentByStrings([".DEFAULT", "selectable"], mangledButton.module).component,
-            MenuSliderControl: getComponentByStrings(["stickToMarkers", "sortedMarkers", "markerPositions"], mangledButton.module).component,
-            Popout: getComponentByStrings(["onRequestOpen", "onRequestClose", "nudgeAlignIntoViewport"], mangledButton.module).component,
-            Spinner: getComponentByStrings(["wanderingCubes", "stopAnimation", "spinningCircle"], mangledButton.module).component,
-            Switch: getComponentByStrings(["Switch", ".colors.REDESIGN_INPUT_CONTROL_SELECTED", "onMouseLeave"], mangledButton.module).component,
-            TextInput: getComponentByStrings(["inputPrefix", "inputClassName", "getIsUnderFlowing"], mangledButton.module).component,
-            ThemeProvider: getComponentByStrings(["disableAdaptiveTheme", "disable-adaptive-theme"], mangledButton.module),
-            Tooltip: getComponentByStrings(["getDerivedStateFromProps", "shouldShowTooltip", "setDomElement"], mangledButton.module).component,
-            useFocusLock: getComponentByStrings(["keyboardModeEnabled", "disableReturnRef", "attachTo"], mangledButton.module).component,
-          } : undefined,
+          nativeUI: Webpack.getMangled(m => m.ConfirmModal, { // native ui module
+            Button: Filters.byStrings(".FILLED", ".BRAND", ".announce(null", ".intl.string("),
+            FocusRing: Filters.byStrings("FocusRing was given a focusTarget"),
+            FormTitle: Filters.byStrings(".errorSeparator", ".faded]", ".defaultColor"),
+            FormSwitch: Filters.byStrings("hideBorder", "tooltipNote", "focusProps"),
+            FormText: Filters.byStrings(".DEFAULT", ".SELECTABLE)"),
+            MenuSliderControl: Filters.byStrings("stickToMarkers", "sortedMarkers", "markerPositions"),
+            Popout: Filters.byStrings("onRequestOpen:", ".renderPopout,", "nudgeAlignIntoViewport:"),
+            Spinner: Filters.byStrings("wanderingCubes", ".stopAnimation]:", "spinningCircle"),
+            TextInput: Filters.byStrings("inputPrefix", "inputClassName", "getIsUnderFlowing"),
+            Tooltip: Filters.byStrings("getDerivedStateFromProps", "shouldShowTooltip", "setDomElement"),
+            useFocusLock: Filters.byStrings("keyboardModeEnabled", "disableReturnRef", "attachTo"),
+          }),
         }
-        if (!Object.values(modules).every(Boolean) || !Object.values(modules.nativeUI).every(Boolean)) {
+        if (!Object.values(modules).every(Boolean) || Object.values(modules.nativeUI).length !== 11) {
           throw new Error("Some modules are missing.");
         }
         Object.assign(constants, modules);
@@ -1963,7 +1961,7 @@ module.exports = meta => {
         // set up css property using refreshed objectURL
         constants.settings.overwriteCSS && viewTransition.setProperty(false);
         // finally, set the selected image, if any, as background. A bit convoluted, but order is important.
-        setImageFromIDB(storedImages => {
+        await setImageFromIDB(storedImages => {
           const img = storedImages.find(image => image.selected);
           img && viewTransition.setImage(img.src)
         });
@@ -1974,10 +1972,10 @@ module.exports = meta => {
       } catch (e) {
         console.error(e);
         UI.showToast("Could not start BackgroundManager", { type: 'error' });
-        stop();
+        BdApi.Plugins.disable(meta.id)
       }
     },
     stop: stop,
-    getSettingsPanel: () => jsx(BuildSettings)
+    getSettingsPanel: () => jsx(ErrorBoundary, null, jsx(BuildSettings))
   }
 }
