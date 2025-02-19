@@ -877,6 +877,8 @@ module.exports = meta => {
     const [sliderValue, setSliderValue, sliderStateRef] = useStateWithRef(value);
     const oldValue = useRef(value);
     const ID = useId();
+    const sliderRef = useRef(null);
+    const inputRef = useRef(null);
 
     const handleTextChange = useCallback(newValue => { setTextValue(newValue) }, [setTextValue]);
     const handleSliderChange = useCallback(newValue => {
@@ -926,12 +928,14 @@ module.exports = meta => {
 
     return jsx('div', {
       style: {
-        display: 'grid', maxWidth: '15rem', cursor: restProps.disabled ? 'not-allowed' : null
+        display: 'grid', gap: "0.5rem", maxWidth: '15rem', cursor: restProps.disabled ? 'not-allowed' : null
       },
       className: [constants.separator.item, constants.separator.labelContainer].join(' '),
       children: [
         jsx('div', {
           style: { display: 'flex', gap: '0.25rem', alignItems: 'center' },
+          onMouseEnter: () => inputRef.current?.focus?.(),
+          onMouseLeave: () => inputRef.current?.blur?.(),
           children: [
             jsx('label', {
               htmlFor: ID,
@@ -944,6 +948,7 @@ module.exports = meta => {
               className: [constants.separator.label, (restProps.disabled ? constants.separator.disabled : '')].join(' '),
             }),
             jsx(constants.nativeUI.TextInput, {
+              inputRef,
               value: textValue,
               type: 'number',
               inputClassName: "BackgroundManager-NumberInput",
@@ -956,17 +961,21 @@ module.exports = meta => {
             }),
             restProps.suffix ? jsx('span', { children: restProps.suffix }) : null
           ]
-        }),
-        jsx(constants.nativeUI.MenuSliderControl, {
-          mini: true,
-          disabled: restProps.disabled,
-          initialValue: sliderValue,
-          onValueRender: e => Number(e.toFixed(restProps.decimals ?? 0)) + (restProps.suffix ?? ''),
-          minValue: restProps.minValue,
-          maxValue: restProps.maxValue,
-          onValueChange: onSliderCommit,
-          asValueChanges: handleSliderChange,
-          keyboardStep: restProps.decimals ? Math.pow(10, -1 * restProps.decimals + 1) : null
+        }), jsx("div", {
+          onMouseEnter: () => sliderRef.current?.focus?.(),
+          onMouseLeave: () => sliderRef.current?.blur?.(),
+          children: jsx(constants.nativeUI.MenuSliderControl, {
+            ref: sliderRef,
+            mini: true, className: "slider__65039",
+            disabled: restProps.disabled,
+            initialValue: sliderValue,
+            onValueRender: e => Number(e.toFixed(restProps.decimals ?? 0)) + (restProps.suffix ?? ''),
+            minValue: restProps.minValue,
+            maxValue: restProps.maxValue,
+            onValueChange: onSliderCommit,
+            asValueChanges: handleSliderChange,
+            keyboardStep: restProps.decimals ? Math.pow(10, -1 * restProps.decimals + 1) : 1
+          })
         })
       ]
     })
@@ -1931,7 +1940,7 @@ module.exports = meta => {
             adjustment: { ...defaultSettings.adjustment, ...configs?.adjustment }
           },
           nativeUI: Webpack.getMangled(m => m.ConfirmModal, { // native ui module
-            Button: Filters.byStrings(".FILLED", ".BRAND", ".announce(null", ".intl.string("),
+            Button: Filters.byStrings("submittingFinishedLabel"),
             FocusRing: Filters.byStrings("FocusRing was given a focusTarget"),
             FormTitle: Filters.byStrings(".errorSeparator", ".faded]", ".defaultColor"),
             FormSwitch: Filters.byStrings("hideBorder", "tooltipNote", "focusProps"),
@@ -1940,7 +1949,7 @@ module.exports = meta => {
             Popout: Filters.byStrings("onRequestOpen:", ".renderPopout,", "nudgeAlignIntoViewport:"),
             Spinner: Filters.byStrings("wanderingCubes", ".stopAnimation]:", "spinningCircle"),
             TextInput: Filters.byStrings("inputPrefix", "inputClassName", "getIsUnderFlowing"),
-            Tooltip: Filters.byStrings("getDerivedStateFromProps", "shouldShowTooltip", "setDomElement"),
+            Tooltip: Filters.byStrings("this.renderTooltip()]"),
             useFocusLock: Filters.byStrings("keyboardModeEnabled", "disableReturnRef", "attachTo"),
           }),
         }
