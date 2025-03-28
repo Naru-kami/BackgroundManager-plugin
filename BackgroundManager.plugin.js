@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 1.2.8
+ * @version 1.2.9
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -221,7 +221,7 @@ module.exports = meta => {
       props.onKeyDown?.(e);
       if (e.key === 'Enter' || e.key === ' ') onClick();
     }, [onClick, props.onKeyDown]);
-    return jsx(IconButton, {
+    return jsx("div", null, jsx(IconButton, { // wrap in div, so popout positions correctly
       TooltipProps: { text: 'Background Manager', position: 'bottom', shouldShow: props.showTooltip },
       ButtonProps: {
         ...props,
@@ -235,7 +235,7 @@ module.exports = meta => {
         path: "M20 4v12H8V4zm0-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2m-8.5 9.67 1.69 2.26 2.48-3.1L19 15H9zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6z",
         className: constants.toolbarClasses.icon,
       }
-    })
+    }))
   }
 
   function ManagerComponent({ onRequestClose }) {
@@ -243,19 +243,15 @@ module.exports = meta => {
     useEffect(() => {
       let mouseDownOnPopout = false,
         layerContainer = reverseQuerySelector(mainComponent.current, '.' + constants.layerContainerClass.layerContainer);
-      const onResize = () => mainComponent.current.style.maxHeight = window.innerHeight - 88 + 'px';
       const handleMouseDown = e => mouseDownOnPopout = layerContainer?.contains(e.target);
       const handleMouseUp = e => !mouseDownOnPopout && !layerContainer?.contains(e.target) && !e.target.closest('#' + meta.slug) && onRequestClose();
       const handleKeyDown = e => e.key === 'Escape' && layerContainer?.childElementCount === 1 && (onRequestClose(), e.stopPropagation());
-      onResize();
       constants.settings.enableDrop && layerContainer?.style.setProperty('z-index', '2002');
-      window.addEventListener('resize', onResize);
       window.addEventListener('mousedown', handleMouseDown);
       window.addEventListener('mouseup', handleMouseUp);
       window.addEventListener('keydown', handleKeyDown, true);
       return () => {
         layerContainer?.style.removeProperty('z-index');
-        window.removeEventListener('resize', onResize);
         window.removeEventListener('mousedown', handleMouseDown);
         window.removeEventListener('mouseup', handleMouseUp);
         window.removeEventListener('keydown', handleKeyDown, true);
@@ -268,6 +264,7 @@ module.exports = meta => {
       role: "dialog",
       tabIndex: "-1",
       "aria-modal": "true",
+      style: { maxHeight: "85vh" },
       className: constants.messagesPopoutClasses.messagesPopoutWrap,
     }, jsx(ManagerHead),
       jsx(ManagerBody)
@@ -278,7 +275,7 @@ module.exports = meta => {
     return jsx('div', {
       className: constants.messagesPopoutClasses.header
     }, jsx('h1', {
-      className: [constants.textStyles.defaultColor, constants.textStyles[['heading-md/medium']]].join(' '),
+      className: [constants.textStyles.defaultColor, constants.textStyles['heading-md/medium']].join(' '),
     }, "Background Manager"));
   }
 
@@ -350,16 +347,27 @@ module.exports = meta => {
             constants.lazyCarousel({
               className: constants.imageCarouselClasses.forcedTransparency,
               items: images.map(img => ({
-                url: img.src, src: img.src, proxyUrl: img.src,
-                original: false,
-                alt: img.image.name || 'unknown',
+                url: img.src, original: "",
+                zoomThumbnailPlaceholder: img.src,
                 contentType: img.image.type,
                 srcIsAnimated: img.image.type === 'image/gif',
-                width: img.width, height: img.height, type: 'IMAGE',
+                type: 'IMAGE',
+                width: img.width, height: img.height,
+                sourceMetadata: {
+                  identifier: {
+                    filename: img.image.name,
+                    size: img.image.size,
+                    type: "attachment"
+                  }
+                },
               })),
               location: "Media Mosaic",
               startingIndex: givenItem.id - 1,
-              onContextMenu: e => ContextMenu.open(e, ContextMenu.buildMenu(saveAndCopy(givenItem))),
+              onContextMenu: e => {
+                const src = e.target.closest(`img`)?.src;
+                if (!src) return;
+                ContextMenu.open(e, ContextMenu.buildMenu(saveAndCopy(images.find(e => e.src === src))))
+              },
             })
           } catch (err) { console.error(err) }
         } : null
@@ -682,36 +690,34 @@ module.exports = meta => {
     const { component = 'button', ...buttonRestProps } = ButtonProps;
     const { path = '', ...svgRestProps } = SvgProps;
     return jsx(constants.nativeUI.Tooltip, {
-      text: '',
       spacing: 8,
       position: 'top',
       color: 'primary',
       hideOnClick: true,
       ...TooltipProps,
-    }, ({ onContextMenu, ...restProp }) => jsx(constants.nativeUI.FocusRing, null,
-      jsx(constants.nativeUI.FocusRing, null,
-        jsx(component, {
+      children: ({ onContextMenu, ...restProp }) => jsx(constants.nativeUI.FocusRing, {
+        children: jsx(component, {
           ...restProp,
           ...buttonRestProps,
-        }, jsx('svg', {
-          x: '0', y: '0',
-          focusable: 'false',
-          'aria-hidden': 'true',
-          role: 'img',
-          xmlns: "http://www.w3.org/2000/svg",
-          width: "24",
-          height: "24",
-          fill: "none",
-          viewBox: "0 0 24 24",
-          children: jsx('path', {
-            fill: "currentColor",
-            d: path
-          }),
-          ...svgRestProps,
+          children: jsx('svg', {
+            x: '0', y: '0',
+            focusable: 'false',
+            'aria-hidden': 'true',
+            role: 'img',
+            xmlns: "http://www.w3.org/2000/svg",
+            width: "24",
+            height: "24",
+            fill: "none",
+            viewBox: "0 0 24 24",
+            children: jsx('path', {
+              fill: "currentColor",
+              d: path
+            }),
+            ...svgRestProps,
+          })
         })
-        )
-      )
-    ))
+      })
+    })
   }
 
   // Setting Components
@@ -933,6 +939,7 @@ module.exports = meta => {
       className: [constants.separator.item, constants.separator.labelContainer].join(' '),
       children: [
         jsx('div', {
+          className: constants.separator.colorDefault,
           style: { display: 'flex', gap: '0.25rem', alignItems: 'center' },
           onMouseEnter: () => inputRef.current?.focus?.(),
           onMouseLeave: () => inputRef.current?.blur?.(),
@@ -985,10 +992,7 @@ module.exports = meta => {
     const [settings, setSettings] = useSettings();
     const handleClick = useCallback(e => {
       const MyContextMenu = ContextMenu.buildMenu([
-        { // Phantom input (inert and hidden), since Discord changed the focus behaviour for inputs inside context menus. Without it, submenus won't open...
-          label: 'Phantom', type: 'custom',
-          render: () => jsx('input', { ref: node => { node?.setAttribute('inert', ''); node?.setAttribute('hidden', '') }, autoFocus: true })
-        }, {
+        {
           label: "Enable Transition",
           type: 'toggle',
           checked: settings.transition.enabled,
@@ -1212,7 +1216,7 @@ module.exports = meta => {
   }
 
   // Patching functions
-  /** Manager to patch and unpatch the context menu. Adds an option to add images to the Manager */
+  /** Context menu un-/patcher */
   const contextMenuPatcher = function () {
     let cleanupImage, cleanupMessage;
     function patch() {
@@ -1227,83 +1231,81 @@ module.exports = meta => {
       if (!cleanupMessage) {
         cleanupMessage = ContextMenu.patch('message', (menu, context) => {
           let embed;
-          // uploaded image
-          if (context.mediaItem?.contentType?.startsWith('image')) {
-            menu.props.children.splice(-1, 0, BuildMenuItem(context.mediaItem.url))
-            // linked image
-          } else if (context.target.classList.contains(constants.originalLink.originalLink) &&
-            context.target.dataset.role === 'img' &&
-            (embed = context.message.embeds?.find(e => e.image?.url === context.target.href))) {
-            menu.props.children.splice(-1, 0, BuildMenuItem(embed.image.proxyURL))
+          if (
+            context.target.classList.contains(constants.originalLink.originalLink) &&
+            context.target.dataset.role === 'img'
+          ) {
+            if (context.mediaItem?.contentType?.startsWith('image')) {
+              // uploaded image
+              menu.props.children.splice(-1, 0, BuildMenuItem(context.mediaItem.url))
+            } else if ((embed = context.message.embeds?.find(e => e.image?.url === context.target.href))) {
+              // linked image
+              menu.props.children.splice(-1, 0, BuildMenuItem(embed.image.proxyURL))
+            } else if ((embed = context.message.messageSnapshots[0].message.embeds?.find(e => e.image?.url === context.target.href))) {
+              // forwarded linked image
+              menu.props.children.splice(-1, 0, BuildMenuItem(embed.image.proxyURL))
+            } else if ((embed = context.message.messageSnapshots[0].message.attachments?.find(e => e.url === context.target.href))) {
+              // forwarded uploaded image
+              menu.props.children.splice(-1, 0, BuildMenuItem(embed.proxy_url))
+            }
           }
         })
       }
     }
     function unpatch() {
-      if (cleanupImage) {
-        cleanupImage();
-        cleanupImage = null;
-      }
-      if (cleanupMessage) {
-        cleanupMessage();
-        cleanupMessage = null;
-      }
+      cleanupImage?.();
+      cleanupImage = null;
+      cleanupMessage?.();
+      cleanupMessage = null;
     }
+    function BuildMenuItem(src) {
+      return jsx(ContextMenu.Group, null, jsx(ContextMenu.Item, {
+        id: 'add-Manager',
+        label: 'Add to Background Manager',
+        action: async () => {
+          let mediaURL = function (src) {
+            let safeURL = function (url) { try { return new URL(url) } catch (e) { return null } }(src);
+            return null == safeURL || safeURL.host === "cdn.discordapp.com" ? src : safeURL.origin === "https://media.discordapp.net" ? (safeURL.host = "cdn.discordapp.com",
+              ["size", "width", "height", "quality", "format"].forEach(param => safeURL.searchParams.delete(param)),
+              safeURL.toString()) : (safeURL.searchParams.delete("width"),
+                safeURL.searchParams.delete("height"),
+                safeURL.toString())
+          }(src);
+          try {
+            const response = await fetch(new Request(mediaURL, { method: "GET", mode: "cors" }));
+            if (!response.ok) throw new Error(response.status);
+            if (!response.headers.get('Content-Type').startsWith('image/')) throw new Error('Item is not an image.');
+            const blub = await response.blob();
+            const image = new Image();
+            image.onload = () => setImageFromIDB(storedImages => {
+              storedImages.push({ id: storedImages.length + 1, image: blub, width: image.width, height: image.height, selected: false, src: null });
+              URL.revokeObjectURL(image.src);
+              UI.showToast("Successfully added to BackgroundManager", { type: 'success' });
+            });
+            image.onerror = () => URL.revokeObjectURL(image.src);
+            image.src = URL.createObjectURL(blub);
+          } catch (err) {
+            console.error('Status ', err)
+            UI.showToast("Failed to add to BackgroundManager. Status " + err, { type: 'error' });
+          };
+        }, icon: s => jsx('svg', {
+          className: s.className,
+          'aria-hidden': 'true',
+          role: 'img',
+          xmlns: "http://www.w3.org/2000/svg",
+          width: "16",
+          height: "16",
+          viewBox: "0 0 24 24",
+          children: jsx('path', {
+            fill: "currentColor",
+            d: "M19 10v7h-12v-12h7v-2h-7c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-7zM10.5 12.67l1.69 2.26 2.48-3.1 3.33 4.17h-10zM1 7v14c0 1.1.9 2 2 2h14v-2h-14v-14zM21 3v-3h-2v3h-3c.01.01 0 2 0 2h3v2.99c.01.01 2 0 2 0v-2.99h3v-2z"
+          })
+        })
+      }))
+    }
+
     return { patch, unpatch }
   }();
-
-  function BuildMenuItem(src) {
-    return jsx(ContextMenu.Group, null, jsx(ContextMenu.Item, {
-      id: 'add-Manager',
-      label: 'Add to Background Manager',
-      action: async () => {
-        let mediaURL = function (src) {
-          let safeURL = function (url) { try { return new URL(url) } catch (e) { return null } }(src);
-          return null == safeURL || safeURL.host === "cdn.discordapp.com" ? src : safeURL.origin === "https://media.discordapp.net" ? (safeURL.host = "cdn.discordapp.com",
-            safeURL.searchParams.delete("size"),
-            safeURL.searchParams.delete("width"),
-            safeURL.searchParams.delete("height"),
-            safeURL.searchParams.delete("quality"),
-            safeURL.searchParams.delete("format"),
-            safeURL.toString()) : (safeURL.searchParams.delete("width"),
-              safeURL.searchParams.delete("height"),
-              safeURL.toString())
-        }(src);
-        try {
-          const response = await fetch(new Request(mediaURL, {
-            method: "GET",
-            mode: "cors"
-          }));
-          if (!response.ok) throw new Error(response.status);
-          if (!response.headers.get('Content-Type').startsWith('image/')) throw new Error('Item is not an image.');
-          const blub = await response.blob();
-          const image = new Image();
-          image.onload = () => setImageFromIDB(storedImages => {
-            storedImages.push({ id: storedImages.length + 1, image: blub, width: image.width, height: image.height, selected: false, src: null });
-            URL.revokeObjectURL(image.src);
-            UI.showToast("Successfully added to BackgroundManager", { type: 'success' });
-          });
-          image.onerror = () => URL.revokeObjectURL(image.src);
-          image.src = URL.createObjectURL(blub);
-        } catch (err) {
-          console.error('Status ', err)
-          UI.showToast("Failed to add to BackgroundManager. Status " + err, { type: 'error' });
-        };
-      }, icon: s => jsx('svg', {
-        className: s.className,
-        'aria-hidden': 'true',
-        role: 'img',
-        xmlns: "http://www.w3.org/2000/svg",
-        width: "16",
-        height: "16",
-        viewBox: "0 0 24 24",
-        children: jsx('path', {
-          fill: "currentColor",
-          d: "M19 10v7h-12v-12h7v-2h-7c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-7zM10.5 12.67l1.69 2.26 2.48-3.1 3.33 4.17h-10zM1 7v14c0 1.1.9 2 2 2h14v-2h-14v-14zM21 3v-3h-2v3h-3c.01.01 0 2 0 2h3v2.99c.01.01 2 0 2 0v-2.99h3v-2z"
-        })
-      })
-    }))
-  }
 
   /** Patches the button to the HeaderBar */
   function addButton() {
@@ -1498,7 +1500,7 @@ module.exports = meta => {
   transition: outline-color 400ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .BackgroundManager-imageWrapper.selected {
-  outline-color: var(--blue-430,currentColor);
+  outline-color: var(--focus-primary, currentColor);
 }
 .BackgroundManager-image {
   object-fit: cover;
@@ -1553,7 +1555,6 @@ module.exports = meta => {
   overflow: auto;
   padding: 0.5rem 0.25rem;
   margin-bottom: 0.5rem;
-  justify-content: center;
   align-content: start;
   scrollbar-gutter: stable;
   mask-image: linear-gradient(#0000, #000 0.5rem, #000 calc(100% - 0.5rem), #0000 100%), linear-gradient(to left, #000 0.75rem, #0000 0.75rem);
@@ -1656,7 +1657,6 @@ module.exports = meta => {
     };
 
     const forceFullRerender = fiber => new Promise(resolve => {
-      // find the fiber node's owner
       const owner = queryFiber(fiber, node => node?.stateNode instanceof React.Component);
       if (owner) {
         owner.stateNode.forceUpdate(() => resolve(true));
