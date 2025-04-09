@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 1.2.9
+ * @version 1.2.10
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -229,11 +229,11 @@ module.exports = meta => {
         tabIndex: '0',
         onKeyDown: handleKeyDown,
         onClick: onClick,
-        className: [constants.toolbarClasses.iconWrapper, !props.showTooltip ? constants.toolbarClasses.selected : undefined, constants.toolbarClasses.clickable].join(' '),
+        className: [constants.toolbarClasses?.iconWrapper, !props.showTooltip ? constants.toolbarClasses?.selected : undefined, constants.toolbarClasses?.clickable].join(' '),
       },
       SvgProps: {
         path: "M20 4v12H8V4zm0-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2m-8.5 9.67 1.69 2.26 2.48-3.1L19 15H9zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6z",
-        className: constants.toolbarClasses.icon,
+        className: constants.toolbarClasses?.icon,
       }
     }))
   }
@@ -242,7 +242,7 @@ module.exports = meta => {
     const mainComponent = useRef(null);
     useEffect(() => {
       let mouseDownOnPopout = false,
-        layerContainer = reverseQuerySelector(mainComponent.current, '.' + constants.layerContainerClass.layerContainer);
+        layerContainer = reverseQuerySelector(mainComponent.current, '.' + constants.layerContainerClass?.layerContainer);
       const handleMouseDown = e => mouseDownOnPopout = layerContainer?.contains(e.target);
       const handleMouseUp = e => !mouseDownOnPopout && !layerContainer?.contains(e.target) && !e.target.closest('#' + meta.slug) && onRequestClose();
       const handleKeyDown = e => e.key === 'Escape' && layerContainer?.childElementCount === 1 && (onRequestClose(), e.stopPropagation());
@@ -265,7 +265,7 @@ module.exports = meta => {
       tabIndex: "-1",
       "aria-modal": "true",
       style: { maxHeight: "85vh" },
-      className: constants.messagesPopoutClasses.messagesPopoutWrap,
+      className: constants.messagesPopoutClasses?.messagesPopoutWrap,
     }, jsx(ManagerHead),
       jsx(ManagerBody)
     )
@@ -273,9 +273,9 @@ module.exports = meta => {
 
   function ManagerHead() {
     return jsx('div', {
-      className: constants.messagesPopoutClasses.header
+      className: constants.messagesPopoutClasses?.header
     }, jsx('h1', {
-      className: [constants.textStyles.defaultColor, constants.textStyles['heading-md/medium']].join(' '),
+      className: [constants.textStyles?.defaultColor, constants.textStyles?.['heading-md/medium']].join(' '),
     }, "Background Manager"));
   }
 
@@ -345,7 +345,6 @@ module.exports = meta => {
         lazyCarousel: constants.lazyCarousel ? (givenItem) => {
           try {
             constants.lazyCarousel({
-              className: constants.imageCarouselClasses.forcedTransparency,
               items: images.map(img => ({
                 url: img.src, original: "",
                 zoomThumbnailPlaceholder: img.src,
@@ -393,18 +392,18 @@ module.exports = meta => {
     }, [images, handleSelect]);
 
     return jsx('div', {
-      className: [constants.messagesPopoutClasses.messageGroupWrapper, constants.markupStyles.markup, constants.messagesPopoutClasses.messagesPopout].join(' '),
+      className: [constants.messagesPopoutClasses?.messageGroupWrapper, constants.markupStyles?.markup, constants.messagesPopoutClasses?.messagesPopout].join(' '),
       style: { display: "grid", gridTemplateRows: 'auto auto 1fr', overflow: 'hidden', border: '0' },
       children: [
         jsx(InputComponent, { setImages }),
         jsx('div', {
           role: 'separator',
-          className: constants.separator.separator,
+          className: constants.separator?.separator,
           style: { marginRight: '0.75rem' }
         }),
         images.length ? jsx('div', {
           style: { paddingInline: '0.25rem 0.75rem', display: 'flex', justifyContent: 'space-between' },
-          className: constants.textStyles['text-sm/semibold'],
+          className: constants.textStyles?.['text-sm/semibold'],
           children: [
             'Total size in memory: ' + formatNumber(images.reduce((p, c) => p + c.image.size, 0)),
             constants.settings.slideshow.enabled && images.length >= 2 ? jsx(IconButton, {
@@ -412,7 +411,7 @@ module.exports = meta => {
               ButtonProps: {
                 style: { padding: '2px', marginRight: '7px' },
                 onClick: onNextShuffle,
-                className: 'BackgroundManager-nextButton ' + constants.textStyles.defaultColor,
+                className: 'BackgroundManager-nextButton ' + constants.textStyles?.defaultColor,
               },
               SvgProps: {
                 width: '18', height: '18',
@@ -422,7 +421,7 @@ module.exports = meta => {
           ],
         }) : null,
         jsx('div', {
-          className: ['BackgroundManager-gridWrapper', constants.scrollbar.thin].join(' '),
+          className: ['BackgroundManager-gridWrapper', constants.scrollbar?.thin].join(' '),
           children: images.map(e => jsx(ImageComponent, {
             key: e.src,
             item: e,
@@ -494,7 +493,7 @@ module.exports = meta => {
         onClick: handleImageClick,
         onContextMenu: handleContextMenu,
         children: [
-          !loaded ? jsx(constants.nativeUI.Spinner) : error ? jsx('div', { className: constants.textStyles.defaultColor }, 'Could not load image') : jsx('img', {
+          !loaded ? jsx(constants.nativeUI.Spinner) : error ? jsx('div', { className: constants.textStyles?.defaultColor }, 'Could not load image') : jsx('img', {
             tabIndex: '-1',
             src: item.src || '',
             className: 'BackgroundManager-image',
@@ -747,7 +746,7 @@ module.exports = meta => {
             viewTransition.bgContainer()?.style.setProperty('--BgManager-transition-duration', (setting.transition.enabled ? newVal ?? 0 : 0) + 'ms');
           },
         }),
-        jsx('div', { role: 'separator', className: constants.separator.separator }),
+        jsx('div', { role: 'separator', className: constants.separator?.separator }),
         jsx(constants.nativeUI.FormTitle, { children: 'Slide Show' }),
         jsx(constants.nativeUI.FormSwitch, {
           hideBorder: true,
@@ -774,7 +773,7 @@ module.exports = meta => {
           value: setting.slideshow.shuffle,
           onChange: newVal => setSetting(prev => ({ ...prev, slideshow: { ...prev.slideshow, shuffle: newVal } })),
         }, 'Enable Shuffle'),
-        jsx('div', { role: 'separator', className: constants.separator.separator, style: { marginBottom: "1rem" } }),
+        jsx('div', { role: 'separator', className: constants.separator?.separator, style: { marginBottom: "1rem" } }),
         jsx(constants.nativeUI.FormSwitch, {
           hideBorder: true,
           value: setting.enableDrop,
@@ -798,7 +797,7 @@ module.exports = meta => {
             newVal ? contextMenuPatcher.patch() : contextMenuPatcher.unpatch();
           },
         }, 'Add context menu option on images'),
-        jsx('div', { role: 'separator', className: constants.separator.separator, style: { marginBottom: "1rem" } }),
+        jsx('div', { role: 'separator', className: constants.separator?.separator, style: { marginBottom: "1rem" } }),
         jsx(constants.nativeUI.Button, {
           style: { marginLeft: "auto" },
           color: constants.nativeUI.Button.Colors.RED,
@@ -868,12 +867,12 @@ module.exports = meta => {
           inputRef,
           type: 'number',
           value: val,
-          className: 'BackgroundManager-SettingsTextInput' + (restProps.disabled ? ' ' + constants.disabled.disabled : ''),
-          prefixElement: jsx(constants.nativeUI.FormText, { style: { flex: 1 }, className: constants.disabled.title }, label ?? ''),
+          className: 'BackgroundManager-SettingsTextInput' + (restProps.disabled ? ' ' + constants.disabled?.disabled : ''),
+          prefixElement: jsx(constants.nativeUI.FormText, { style: { flex: 1 }, className: constants.disabled?.title }, label ?? ''),
           onChange: handleChange,
           onBlur: handleBlur,
           onKeyDown: handleKeyDown
-        }), suffix ? jsx('span', { style: { marginLeft: '0.25rem', marginBottom: '20px' }, className: constants.textStyles.defaultColor }, suffix) : null
+        }), suffix ? jsx('span', { style: { marginLeft: '0.25rem', marginBottom: '20px' }, className: constants.textStyles?.defaultColor }, suffix) : null
       ]
     })
   }
@@ -936,10 +935,10 @@ module.exports = meta => {
       style: {
         display: 'grid', gap: "0.5rem", maxWidth: '15rem', cursor: restProps.disabled ? 'not-allowed' : null
       },
-      className: [constants.separator.item, constants.separator.labelContainer].join(' '),
+      className: [constants.separator?.item, constants.separator?.labelContainer].join(' '),
       children: [
         jsx('div', {
-          className: constants.separator.colorDefault,
+          className: constants.separator?.colorDefault,
           style: { display: 'flex', gap: '0.25rem', alignItems: 'center' },
           onMouseEnter: () => inputRef.current?.focus?.(),
           onMouseLeave: () => inputRef.current?.blur?.(),
@@ -952,7 +951,7 @@ module.exports = meta => {
                 cursor: restProps.disabled ? 'not-allowed' : 'inherit',
                 flex: '1 0 calc(60% - .5rem)'
               },
-              className: [constants.separator.label, (restProps.disabled ? constants.separator.disabled : '')].join(' '),
+              className: [constants.separator?.label, (restProps.disabled ? constants.separator?.disabled : '')].join(' '),
             }),
             jsx(constants.nativeUI.TextInput, {
               inputRef,
@@ -1232,7 +1231,7 @@ module.exports = meta => {
         cleanupMessage = ContextMenu.patch('message', (menu, context) => {
           let embed;
           if (
-            context.target.classList.contains(constants.originalLink.originalLink) &&
+            context.target.classList.contains(constants.originalLink?.originalLink) &&
             context.target.dataset.role === 'img'
           ) {
             if (context.mediaItem?.contentType?.startsWith('image')) {
@@ -1336,7 +1335,7 @@ module.exports = meta => {
           children: jsx(PopoutComponent), key: meta.slug
         }));
     })
-    forceRerenderElement('.' + constants.toolbarClasses.toolbar);
+    forceRerenderElement('.' + constants.toolbarClasses?.toolbar);
   }
 
   /** Cleanup when plugin is disabled */
@@ -1362,7 +1361,7 @@ module.exports = meta => {
     themeObserver.stop();
     viewTransition.destroy();
     // remove the icon
-    constants.toolbarClasses?.toolbar && forceRerenderElement('.' + constants.toolbarClasses.toolbar);
+    constants.toolbarClasses?.toolbar && forceRerenderElement('.' + constants.toolbarClasses?.toolbar);
     // unpatch contextmenu
     contextMenuPatcher.unpatch();
     // unpatch the toolbar
@@ -1923,15 +1922,14 @@ module.exports = meta => {
         const modules = {
           toolbarClasses: Webpack.getModule(Filters.byKeys("title", "toolbar")), // classes for toolbar
           messagesPopoutClasses: Webpack.getModule(Filters.byKeys("messagesPopout")), // classes for messages popout
-          textStyles: Webpack.getModule(Filters.byKeys("defaultColor")), // calsses for general text styles
+          textStyles: Webpack.getModule(Filters.byKeys("defaultColor")), // classes for general text styles
           markupStyles: Webpack.getModule(Filters.byKeys("markup")),
           disabled: Webpack.getModule(Filters.byKeys("disabled", "labelRow")), // classes for disabled inputs
-          layerContainerClass: Webpack.getModule(Filters.byKeys('layerContainer')), // class of Discord's nativelayer container
-          originalLink: Webpack.getModule(Filters.byKeys('originalLink')), // class for image embed
+          layerContainerClass: Webpack.getModule(Filters.byKeys('layerContainer')), // classes of Discord's nativelayer container
+          originalLink: Webpack.getModule(Filters.byKeys('originalLink')), // classes for image embed
           scrollbar: Webpack.getModule(Filters.byKeys('thin')), // classes for scrollable content
           separator: Webpack.getModule(Filters.byKeys('scroller', 'separator')), // classes for separator
-          baseLayer: Webpack.getModule(Filters.byKeys('baseLayer', 'bg')), // class of Discord's base layer
-          imageCarouselClasses: Webpack.getByKeys("carouselModal"), // classes for image carousel
+          baseLayer: Webpack.getModule(Filters.byKeys('baseLayer', 'bg')), // classes of Discord's base layer
           lazyCarousel: Object.values(Webpack.getBySource(".MEDIA_VIEWER", ".OPEN_MODAL"))[0],  // Module for lazy carousel
           settings: {
             ...defaultSettings, ...configs,
@@ -1942,19 +1940,19 @@ module.exports = meta => {
           nativeUI: Webpack.getMangled(m => m.ConfirmModal, { // native ui module
             Button: Filters.byStrings("submittingFinishedLabel"),
             FocusRing: Filters.byStrings("FocusRing was given a focusTarget"),
-            FormTitle: Filters.byStrings(".errorSeparator", ".faded]", ".defaultColor"),
-            FormSwitch: Filters.byStrings("hideBorder", "tooltipNote", "focusProps"),
-            FormText: Filters.byStrings(".DEFAULT", ".SELECTABLE)"),
-            MenuSliderControl: Filters.byStrings("stickToMarkers", "sortedMarkers", "markerPositions"),
-            Popout: Filters.byStrings("onRequestOpen:", ".renderPopout,", "nudgeAlignIntoViewport:"),
-            Spinner: Filters.byStrings("wanderingCubes", ".stopAnimation]:", "spinningCircle"),
-            TextInput: Filters.byStrings("inputPrefix", "inputClassName", "getIsUnderFlowing"),
+            FormTitle: Filters.byStrings(".errorSeparator"),
+            FormSwitch: Filters.byStrings("tooltipNote:", "focusProps:"),
+            FormText: Filters.byStrings(".SELECTABLE)"),
+            MenuSliderControl: Filters.byStrings("moveGrabber"),
+            Popout: Filters.byStrings("Unsupported animation config:"),
+            Spinner: Filters.byStrings(".stopAnimation]:"),
+            TextInput: Filters.byStrings(".getIsUnderFlowing()"),
             Tooltip: Filters.byStrings("this.renderTooltip()]"),
-            useFocusLock: Filters.byStrings("keyboardModeEnabled", "disableReturnRef", "attachTo"),
+            useFocusLock: Filters.byStrings("disableReturnRef:"),
           }),
         }
-        if (!Object.values(modules).every(Boolean) || Object.values(modules.nativeUI).length !== 11) {
-          throw new Error("Some modules are missing.");
+        if (!modules.baseLayer || !new Set(["Popout", "Tooltip", "Spinner", "FocusRing"]).isSubsetOf(new Set(Object.keys(modules.nativeUI)))) {
+          throw new Error("Missing essential modules.");
         }
         Object.assign(constants, modules);
         generateCSS();
@@ -1981,7 +1979,7 @@ module.exports = meta => {
       } catch (e) {
         console.error(e);
         UI.showToast("Could not start BackgroundManager", { type: 'error' });
-        BdApi.Plugins.disable(meta.id)
+        BdApi.Plugins.disable(meta.id);
       }
     },
     stop: stop,
