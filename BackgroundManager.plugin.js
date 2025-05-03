@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 1.2.10
+ * @version 1.2.11
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -1796,7 +1796,7 @@ module.exports = meta => {
         throw new Error("Cannot patch ThemeProvider");
       }
       cleanupPatch = Patcher.after(meta.slug, nativeUI, ThemeProviderKey, (_, __, returnVal) => {
-        if (returnVal.props?.children?.props?.className === constants.baseLayer.bg)
+        if (returnVal.props?.children?.props?.className?.includes(constants.baseLayer.bg))
           returnVal.props.children.props.children = jsx(baseLayerBg)
       })
       forceRerenderElement('.' + constants.baseLayer.bg);
