@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 1.2.11
+ * @version 1.2.12
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -221,7 +221,7 @@ module.exports = meta => {
       props.onKeyDown?.(e);
       if (e.key === 'Enter' || e.key === ' ') onClick();
     }, [onClick, props.onKeyDown]);
-    return jsx("div", null, jsx(IconButton, { // wrap in div, so popout positions correctly
+    return jsx(IconButton, {
       TooltipProps: { text: 'Background Manager', position: 'bottom', shouldShow: props.showTooltip },
       ButtonProps: {
         ...props,
@@ -235,7 +235,7 @@ module.exports = meta => {
         path: "M20 4v12H8V4zm0-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2m-8.5 9.67 1.69 2.26 2.48-3.1L19 15H9zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6z",
         className: constants.toolbarClasses?.icon,
       }
-    }))
+    })
   }
 
   function ManagerComponent({ onRequestClose }) {
@@ -661,7 +661,8 @@ module.exports = meta => {
   }
 
   function PopoutComponent() {
-    const [open, setOpen] = useState(false)
+    const [open, setOpen] = useState(false);
+    const targetElementRef = useRef(null);
     const handleClick = useCallback(() => {
       setOpen(op => !op);
     }, [setOpen]);
@@ -673,6 +674,7 @@ module.exports = meta => {
       align: 'right',
       autoInvert: false,
       spacing: 8,
+      targetElementRef,
       renderPopout: () => jsx(ManagerComponent, { onRequestClose: () => setOpen(false) }),
       children: (e, t) => {
         return jsx(IconComponent, {
@@ -680,6 +682,7 @@ module.exports = meta => {
           id: meta.slug,
           onClick: handleClick,
           showTooltip: !t.isShown,
+          ref: targetElementRef
         })
       }
     })
@@ -1232,20 +1235,21 @@ module.exports = meta => {
           let embed;
           if (
             context.target.classList.contains(constants.originalLink?.originalLink) &&
-            context.target.dataset.role === 'img'
+            context.target.dataset.role === 'img' &&
+            Array.isArray(menu?.props?.children?.props?.children)
           ) {
             if (context.mediaItem?.contentType?.startsWith('image')) {
               // uploaded image
-              menu.props.children.splice(-1, 0, BuildMenuItem(context.mediaItem.url))
+              menu.props.children.props.children.splice(-1, 0, BuildMenuItem(context.mediaItem.url))
             } else if ((embed = context.message.embeds?.find(e => e.image?.url === context.target.href))) {
               // linked image
-              menu.props.children.splice(-1, 0, BuildMenuItem(embed.image.proxyURL))
+              menu.props.children.props.children.splice(-1, 0, BuildMenuItem(embed.image.proxyURL))
             } else if ((embed = context.message.messageSnapshots[0].message.embeds?.find(e => e.image?.url === context.target.href))) {
               // forwarded linked image
-              menu.props.children.splice(-1, 0, BuildMenuItem(embed.image.proxyURL))
+              menu.props.children.props.children.splice(-1, 0, BuildMenuItem(embed.image.proxyURL))
             } else if ((embed = context.message.messageSnapshots[0].message.attachments?.find(e => e.url === context.target.href))) {
               // forwarded uploaded image
-              menu.props.children.splice(-1, 0, BuildMenuItem(embed.proxy_url))
+              menu.props.children.props.children.splice(-1, 0, BuildMenuItem(embed.proxy_url))
             }
           }
         })
