@@ -899,6 +899,7 @@ module.exports = meta => {
       oldValue.current = !isNaN(Number(textValue)) ? Math.max(Number(textValue), restProps.minValue ?? Number(textValue)) : oldValue.current;
       setTextValue(oldValue.current + '');
       setSliderValue(oldValue.current);
+      sliderRef.current._reactInternals.stateNode.setState({ value: oldValue.current });
       onChange(oldValue.current);
     }, [onChange, setSliderValue, textValue, setTextValue]);
     const handleKeyDown = useCallback(e => {
@@ -1924,7 +1925,7 @@ module.exports = meta => {
         !Object.keys(constants).length && console.log('%c[BackgroundManager] %cInitialized', "color:#DBDCA6;font-weight:bold", "")
         const configs = Data.load(meta.slug, "settings");
         const modules = {
-          toolbarClasses: Webpack.getModule(Filters.byKeys("title", "toolbar")), // classes for toolbar
+          toolbarClasses: Webpack.getModule(Filters.byKeys("iconWrapper", "toolbar")), // classes for toolbar
           messagesPopoutClasses: Webpack.getModule(Filters.byKeys("messagesPopout")), // classes for messages popout
           textStyles: Webpack.getModule(Filters.byKeys("defaultColor")), // classes for general text styles
           markupStyles: Webpack.getModule(Filters.byKeys("markup")),
@@ -1942,7 +1943,6 @@ module.exports = meta => {
             adjustment: { ...defaultSettings.adjustment, ...configs?.adjustment }
           },
           nativeUI: Webpack.getMangled(m => m.ConfirmModal, { // native ui module
-            Button: Filters.byStrings("submittingFinishedLabel"),
             FocusRing: Filters.byStrings("FocusRing was given a focusTarget"),
             FormTitle: Filters.byStrings(".errorSeparator"),
             FormSwitch: Filters.byStrings("tooltipNote:", "focusProps:"),
@@ -1950,11 +1950,14 @@ module.exports = meta => {
             MenuSliderControl: Filters.byStrings("moveGrabber"),
             Popout: Filters.byStrings("Unsupported animation config:"),
             Spinner: Filters.byStrings(".stopAnimation]:"),
-            TextInput: Filters.byStrings(".getIsUnderFlowing()"),
             Tooltip: Filters.byStrings("this.renderTooltip()]"),
             useFocusLock: Filters.byStrings("disableReturnRef:"),
           }),
         }
+        Object.assign(modules.nativeUI, {   // Don't need the whole module, just the right function inside it.
+          Button: (([mod, key]) => mod[key])([...Webpack.getWithKey(Filters.byStrings(",submittingFinishedLabel:"))]),
+          TextInput: (([mod, key]) => mod[key])([...Webpack.getWithKey(Filters.byStrings("prefixElement"))])
+        })
         if (!modules.baseLayer || !new Set(["Popout", "Tooltip", "Spinner", "FocusRing"]).isSubsetOf(new Set(Object.keys(modules.nativeUI)))) {
           throw new Error("Missing essential modules.");
         }
