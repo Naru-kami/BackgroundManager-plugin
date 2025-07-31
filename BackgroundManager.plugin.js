@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 1.2.12
+ * @version 1.2.13
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
