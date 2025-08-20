@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 1.2.13
+ * @version 1.2.14
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -409,7 +409,7 @@ module.exports = meta => {
             constants.settings.slideshow.enabled && images.length >= 2 ? jsx(IconButton, {
               TooltipProps: { text: 'Next Background Image' },
               ButtonProps: {
-                style: { padding: '2px', marginRight: '7px' },
+                style: { padding: 0, marginRight: 9 },
                 onClick: onNextShuffle,
                 className: 'BackgroundManager-nextButton ' + constants.textStyles?.defaultColor,
               },
@@ -732,7 +732,6 @@ module.exports = meta => {
         jsx(constants.nativeUI.FormSwitch, {
           hideBorder: true,
           value: setting.transition.enabled,
-          note: 'Cross-fade animation between background images.',
           onChange: newVal => {
             setSetting(prev => ({ ...prev, transition: { ...prev.transition, enabled: newVal } }));
             viewTransition.bgContainer()?.style.setProperty('--BgManager-transition-duration', (newVal ? setting.transition.duration ?? 0 : 0) + 'ms');
@@ -807,7 +806,7 @@ module.exports = meta => {
           onClick: () => {
             UI.showConfirmationModal(
               "Delete Database",
-              "This will delete the delete the indexedDB database, including every Image saved in it.\n\nAre you sure you want to delete all your saved images?",
+              "This will delete the entire indexedDB database, including every Image saved on it.\n\nAre you sure you want to delete all your saved images?",
               {
                 danger: true,
                 confirmText: "Yes, Delete",
@@ -836,15 +835,6 @@ module.exports = meta => {
       onChange(lastVal.current);
       setVal(lastVal.current + '');
     }, [val, onChange, lastVal.current, setVal]);
-    const handleWheel = useCallback(e => {
-      if (e.deltaY && inputRef.current === document.activeElement) {
-        e.preventDefault?.();
-        setVal(oldValue => {
-          oldValue = (Number(oldValue) - Math.sign(e.deltaY)).toFixed(Math.ceil(Math.abs(Math.log10(Math.abs(restProps.min ?? 1)))));
-          return Math.max(Number(oldValue), restProps.min ?? Number(oldValue)) + '';
-        });
-      }
-    }, [setVal]);
     const handleKeyDown = useCallback(e => {
       e.key === 'Enter' && e.target?.blur?.();
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -858,24 +848,38 @@ module.exports = meta => {
     }, [setVal]);
 
     useEffect(() => {
-      inputRef.current?.addEventListener('wheel', handleWheel);
-      return () => inputRef.current?.removeEventListener('wheel', handleWheel);
-    }, [handleWheel]);
+      const ctrl = new AbortController();
+
+      inputRef.current?.addEventListener?.('wheel', e => {
+        if (e.deltaY && inputRef.current === document.activeElement) {
+          e.preventDefault?.();
+          setVal(oldValue => {
+            oldValue = (Number(oldValue) - Math.sign(e.deltaY)).toFixed(Math.ceil(Math.abs(Math.log10(Math.abs(restProps.min ?? 1)))));
+            return Math.max(Number(oldValue), restProps.min ?? Number(oldValue)) + '';
+          });
+        }
+      }, ctrl);
+      inputRef.current?.addEventListener?.("beforeinput", e => {
+        if (e.data && /[^0-9e\+\-.]+/.test(e.data)) e.preventDefault?.();
+      }, ctrl);
+
+      return () => ctrl.abort();
+    }, []);
 
     return jsx('label', {
-      style: { display: 'grid', gridTemplateColumns: '1fr auto', width: '100%', alignItems: 'center' },
+      className: 'BackgroundManager-FormNumberInput',
       children: [
+        jsx("span", { className: constants.textStyles?.defaultColor }, label ?? ''),
         jsx(constants.nativeUI.TextInput, {
           ...restProps,
           inputRef,
-          type: 'number',
+          rows: 1,
           value: val,
-          className: 'BackgroundManager-SettingsTextInput' + (restProps.disabled ? ' ' + constants.disabled?.disabled : ''),
-          prefixElement: jsx(constants.nativeUI.FormText, { style: { flex: 1 }, className: constants.disabled?.title }, label ?? ''),
+          className: 'BackgroundManager-NumberInput',
           onChange: handleChange,
           onBlur: handleBlur,
           onKeyDown: handleKeyDown
-        }), suffix ? jsx('span', { style: { marginLeft: '0.25rem', marginBottom: '20px' }, className: constants.textStyles?.defaultColor }, suffix) : null
+        }), suffix ? jsx('span', { className: constants.textStyles?.defaultColor }, suffix) : null
       ]
     })
   }
@@ -916,33 +920,42 @@ module.exports = meta => {
         }
       }
     }, [setTextValue]);
-    const handleWheel = useCallback(e => {
-      if (e.deltaY) {
-        const delta = (e.deltaY < 0 ? 10 : -10) * (restProps.decimals ? Math.pow(10, -1 * restProps.decimals) : 0.1);
-        setTextValue(val => {
-          val = (Number(val) + delta).toFixed(restProps.decimals ?? 0);
-          return Math.max(Number(val), restProps.minValue ?? Number(val)) + '';
-        });
-      }
-    }, [setTextValue]);
     const onSliderCommit = useCallback(newValue => {
       const fixedValue = Number(newValue.toFixed(restProps.decimals ?? 0));
       setTextValue(fixedValue + '');
       onChange(fixedValue)
     }, [onChange, setTextValue]);
 
-    useEffect(() => () => { // component might unmount while user changes slider values
-      Number(textStateRef.current) != sliderStateRef.current && onChange(sliderStateRef.current);
+    useEffect(() => {
+      const ctrl = new AbortController();
+
+      inputRef.current?.addEventListener?.('wheel', e => {
+        if (e.deltaY) {
+          const delta = -10 * Math.sign(e.deltaY) * (restProps.decimals ? Math.pow(10, -1 * restProps.decimals) : 0.1);
+          setTextValue(val => {
+            val = (Number(val) + delta).toFixed(restProps.decimals ?? 0);
+            return Math.max(Number(val), restProps.minValue ?? Number(val)) + '';
+          });
+        }
+      }, ctrl);
+      inputRef.current?.addEventListener?.("beforeinput", e => {
+        if (e.data && /[^0-9e\+\-.]+/.test(e.data)) e.preventDefault?.();
+      }, ctrl);
+
+      return () => {
+        ctrl.abort();
+        Number(textStateRef.current) != sliderStateRef.current && onChange(sliderStateRef.current);
+      }
     }, []);
 
     return jsx('div', {
       style: {
-        display: 'grid', gap: "0.5rem", maxWidth: '15rem', cursor: restProps.disabled ? 'not-allowed' : null
+        display: 'grid', gap: "0.5rem", maxWidth: '16rem'
       },
-      className: [constants.separator?.item, constants.separator?.labelContainer].join(' '),
+      className: [constants.separator?.item, constants.separator?.labelContainer, (restProps.disabled ? constants.separator?.disabled : '')].join(' '),
       children: [
         jsx('div', {
-          className: constants.separator?.colorDefault,
+          className: constants.textStyles?.defaultColor,
           style: { display: 'flex', gap: '0.25rem', alignItems: 'center' },
           onMouseEnter: () => inputRef.current?.focus?.(),
           onMouseLeave: () => inputRef.current?.blur?.(),
@@ -952,31 +965,28 @@ module.exports = meta => {
               children: restProps.label,
               style: {
                 marginRight: 'auto', paddingRight: '0.75rem',
-                cursor: restProps.disabled ? 'not-allowed' : 'inherit',
-                flex: '1 0 calc(60% - .5rem)'
+                cursor: 'inherit',
+                flex: '1 0 calc(55% - .5rem)'
               },
-              className: [constants.separator?.label, (restProps.disabled ? constants.separator?.disabled : '')].join(' '),
+              className: [constants.separator?.label].join(' '),
             }),
             jsx(constants.nativeUI.TextInput, {
               inputRef,
               value: textValue,
-              type: 'number',
-              inputClassName: "BackgroundManager-NumberInput",
+              rows: 1,
+              className: "BackgroundManager-NumberInput",
               disabled: restProps.disabled,
               id: ID,
               onChange: handleTextChange,
               onBlur: onTextCommit,
               onKeyDown: handleKeyDown,
-              onWheel: handleWheel,
             }),
             restProps.suffix ? jsx('span', { children: restProps.suffix }) : null
           ]
         }), jsx("div", {
-          onMouseEnter: () => sliderRef.current?.focus?.(),
-          onMouseLeave: () => sliderRef.current?.blur?.(),
           children: jsx(constants.nativeUI.MenuSliderControl, {
             ref: sliderRef,
-            mini: true, className: "slider__65039",
+            mini: true, className: constants.slider?.slider,
             disabled: restProps.disabled,
             initialValue: sliderValue,
             onValueRender: e => Number(e.toFixed(restProps.decimals ?? 0)) + (restProps.suffix ?? ''),
@@ -1381,8 +1391,7 @@ module.exports = meta => {
   function generateCSS() {
     DOM.removeStyle(meta.slug + '-style');
     DOM.addStyle(meta.slug + '-style', `
-.BackgroundManager-NumberInput::-webkit-inner-spin-button,
-.BackgroundManager-SettingsTextInput input::-webkit-inner-spin-button {
+.BackgroundManager-NumberInput::-webkit-scrollbar {
   display: none;
 }
 #app-mount .${constants.baseLayer.bg} {
@@ -1417,19 +1426,20 @@ module.exports = meta => {
   0% { opacity: 0; }
   100% { opacity: 1; }
 }
-.BackgroundManager-NumberInput {
-  height: 1.5rem;
-  padding: 0.25rem;
-  text-align: right;
-}
-.BackgroundManager-SettingsTextInput {
-  flex-direction: row;
+.BackgroundManager-FormNumberInput {
+  display: grid;
+  grid-template-columns: 1fr 100px auto;
   align-items: center;
+  gap: 4px;
   margin-bottom: 20px;
+  &:has([disabled]) {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
-.BackgroundManager-SettingsTextInput input {
-  width: fit-content;
-  flex: 0 1 150px;
+.BackgroundManager-NumberInput {
+  white-space: nowrap;
+  padding-block: 0.25rem;
   text-align: right;
 }
 .BackgroundManager-inputWrapper {
@@ -1925,16 +1935,16 @@ module.exports = meta => {
         !Object.keys(constants).length && console.log('%c[BackgroundManager] %cInitialized', "color:#DBDCA6;font-weight:bold", "")
         const configs = Data.load(meta.slug, "settings");
         const modules = {
-          toolbarClasses: Webpack.getModule(Filters.byKeys("iconWrapper", "toolbar")), // classes for toolbar
-          messagesPopoutClasses: Webpack.getModule(Filters.byKeys("messagesPopout")), // classes for messages popout
-          textStyles: Webpack.getModule(Filters.byKeys("defaultColor")), // classes for general text styles
-          markupStyles: Webpack.getModule(Filters.byKeys("markup")),
-          disabled: Webpack.getModule(Filters.byKeys("disabled", "labelRow")), // classes for disabled inputs
-          layerContainerClass: Webpack.getModule(Filters.byKeys('layerContainer')), // classes of Discord's nativelayer container
-          originalLink: Webpack.getModule(Filters.byKeys('originalLink')), // classes for image embed
-          scrollbar: Webpack.getModule(Filters.byKeys('thin')), // classes for scrollable content
-          separator: Webpack.getModule(Filters.byKeys('scroller', 'separator')), // classes for separator
-          baseLayer: Webpack.getModule(Filters.byKeys('baseLayer', 'bg')), // classes of Discord's base layer
+          toolbarClasses: Webpack.getByKeys("iconWrapper", "toolbar"), // classes for toolbar
+          messagesPopoutClasses: Webpack.getByKeys("messagesPopout"), // classes for messages popout
+          textStyles: Webpack.getByKeys("defaultColor"), // classes for general text styles
+          markupStyles: Webpack.getByKeys("markup"),
+          slider: Webpack.getByKeys("sliderContainer", "slider"),
+          layerContainerClass: Webpack.getByKeys("layerContainer"), // classes of Discord"s nativelayer container
+          originalLink: Webpack.getByKeys("originalLink"), // classes for image embed
+          scrollbar: Webpack.getByKeys("thin"), // classes for scrollable content
+          separator: Webpack.getByKeys("scroller", "label"), // classes for separator
+          baseLayer: Webpack.getByKeys("baseLayer", "bg"), // classes of Discord's base layer
           lazyCarousel: Object.values(Webpack.getBySource(".MEDIA_VIEWER", ".OPEN_MODAL"))[0],  // Module for lazy carousel
           settings: {
             ...defaultSettings, ...configs,
@@ -1956,7 +1966,7 @@ module.exports = meta => {
         }
         Object.assign(modules.nativeUI, {   // Don't need the whole module, just the right function inside it.
           Button: (([mod, key]) => mod[key])([...Webpack.getWithKey(Filters.byStrings(",submittingFinishedLabel:"))]),
-          TextInput: (([mod, key]) => mod[key])([...Webpack.getWithKey(Filters.byStrings("prefixElement"))])
+          TextInput: (([mod, key]) => mod[key])([...Webpack.getWithKey(Filters.byStrings("allowOverflow", "autoFocus"))])
         })
         if (!modules.baseLayer || !new Set(["Popout", "Tooltip", "Spinner", "FocusRing"]).isSubsetOf(new Set(Object.keys(modules.nativeUI)))) {
           throw new Error("Missing essential modules.");
