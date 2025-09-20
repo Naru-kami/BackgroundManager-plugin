@@ -241,20 +241,25 @@ module.exports = meta => {
   function ManagerComponent({ onRequestClose }) {
     const mainComponent = useRef(null);
     useEffect(() => {
-      let mouseDownOnPopout = false,
-        layerContainer = reverseQuerySelector(mainComponent.current, '.' + constants.layerContainerClass?.layerContainer);
-      const handleMouseDown = e => mouseDownOnPopout = layerContainer?.contains(e.target);
-      const handleMouseUp = e => !mouseDownOnPopout && !layerContainer?.contains(e.target) && !e.target.closest('#' + meta.slug) && onRequestClose();
-      const handleKeyDown = e => e.key === 'Escape' && layerContainer?.childElementCount === 1 && (onRequestClose(), e.stopPropagation());
-      constants.settings.enableDrop && layerContainer?.style.setProperty('z-index', '2002');
-      window.addEventListener('mousedown', handleMouseDown);
-      window.addEventListener('mouseup', handleMouseUp);
-      window.addEventListener('keydown', handleKeyDown, true);
+      let mouseDownOnPopout = false;
+      const layerContainer = reverseQuerySelector(mainComponent.current, '.' + constants.layerContainerClass?.layerContainer);
+      if (!layerContainer) return;
+
+      const ctrl = new AbortController();
+      constants.settings.enableDrop && layerContainer.style.setProperty('z-index', '2002');
+      addEventListener('mousedown', e => {
+        mouseDownOnPopout = layerContainer.contains(e.target)
+      }, ctrl);
+      addEventListener('mouseup', e => {
+        !mouseDownOnPopout && !layerContainer.contains(e.target) && !e.target.closest('#' + meta.slug) && onRequestClose()
+      }, ctrl);
+      addEventListener('keydown', e => {
+        e.key === 'Escape' && layerContainer.childElementCount === 1 && (onRequestClose(), e.stopPropagation())
+      }, { capture: true, signal: ctrl.signal });
+
       return () => {
-        layerContainer?.style.removeProperty('z-index');
-        window.removeEventListener('mousedown', handleMouseDown);
-        window.removeEventListener('mouseup', handleMouseUp);
-        window.removeEventListener('keydown', handleKeyDown, true);
+        layerContainer.style.removeProperty('z-index');
+        ctrl.abort();
       }
     }, []);
     !constants.settings.enableDrop && constants.nativeUI.useFocusLock?.(mainComponent);
@@ -1940,7 +1945,7 @@ module.exports = meta => {
           textStyles: Webpack.getByKeys("defaultColor"), // classes for general text styles
           markupStyles: Webpack.getByKeys("markup"),
           slider: Webpack.getByKeys("sliderContainer", "slider"),
-          layerContainerClass: Webpack.getByKeys("layerContainer"), // classes of Discord"s nativelayer container
+          layerContainerClass: Webpack.getByKeys("trapClicks"), // classes of Discord"s nativelayer container
           originalLink: Webpack.getByKeys("originalLink"), // classes for image embed
           scrollbar: Webpack.getByKeys("thin"), // classes for scrollable content
           separator: Webpack.getByKeys("scroller", "label"), // classes for separator
@@ -1956,7 +1961,6 @@ module.exports = meta => {
             FocusRing: Filters.byStrings("FocusRing was given a focusTarget"),
             FormTitle: Filters.byStrings(".errorSeparator"),
             FormSwitch: Filters.byStrings("tooltipNote:", "focusProps:"),
-            FormText: Filters.byStrings(".SELECTABLE)"),
             MenuSliderControl: Filters.byStrings("moveGrabber"),
             Popout: Filters.byStrings("Unsupported animation config:"),
             Spinner: Filters.byStrings(".stopAnimation]:"),
