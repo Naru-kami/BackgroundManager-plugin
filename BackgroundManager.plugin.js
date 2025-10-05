@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 1.2.15
+ * @version 1.2.16
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -734,8 +734,7 @@ module.exports = meta => {
     return jsx(Fragment, {
       children: [
         jsx(constants.nativeUI.FormTitle, { children: 'Transitions' }),
-        jsx(constants.nativeUI.FormSwitch, {
-          hideBorder: true,
+        jsx(FormSwitch, {
           value: setting.transition.enabled,
           onChange: newVal => {
             setSetting(prev => ({ ...prev, transition: { ...prev.transition, enabled: newVal } }));
@@ -755,8 +754,7 @@ module.exports = meta => {
         }),
         jsx('div', { role: 'separator', className: constants.separator?.separator }),
         jsx(constants.nativeUI.FormTitle, { children: 'Slide Show' }),
-        jsx(constants.nativeUI.FormSwitch, {
-          hideBorder: true,
+        jsx(FormSwitch, {
           value: setting.slideshow.enabled,
           onChange: newVal => {
             setSetting(prev => ({ ...prev, slideshow: { ...prev.slideshow, enabled: newVal } }));
@@ -774,21 +772,18 @@ module.exports = meta => {
             slideShowManager.start();
           },
         }),
-        jsx(constants.nativeUI.FormSwitch, {
+        jsx(FormSwitch, {
           disabled: !setting.slideshow.enabled,
-          hideBorder: true,
           value: setting.slideshow.shuffle,
           onChange: newVal => setSetting(prev => ({ ...prev, slideshow: { ...prev.slideshow, shuffle: newVal } })),
         }, 'Enable Shuffle'),
         jsx('div', { role: 'separator', className: constants.separator?.separator, style: { marginBottom: "1rem" } }),
-        jsx(constants.nativeUI.FormSwitch, {
-          hideBorder: true,
+        jsx(FormSwitch, {
           value: setting.enableDrop,
           note: "When enabled, the popout will move infront of Discord's native drop area. It will also disable the popout's focus trap to enable dragging.",
           onChange: newVal => setSetting(prev => ({ ...prev, enableDrop: newVal })),
         }, 'Enable Drop Area'),
-        jsx(constants.nativeUI.FormSwitch, {
-          hideBorder: true,
+        jsx(FormSwitch, {
           value: setting.overwriteCSS,
           note: 'Auto detects and overwrites the custom property of the themes\' background image. If no custom Propery is found, the original Wallpaper will not be overwritten.',
           onChange: newVal => {
@@ -796,8 +791,7 @@ module.exports = meta => {
             newVal ? (themeObserver.start(), viewTransition.setProperty()) : themeObserver.stop();
           },
         }, "Overwrite theme's CSS variable"),
-        jsx(constants.nativeUI.FormSwitch, {
-          hideBorder: true,
+        jsx(FormSwitch, {
           value: setting.addContextMenu,
           onChange: newVal => {
             setSetting(prev => ({ ...prev, addContextMenu: newVal }));
@@ -825,6 +819,24 @@ module.exports = meta => {
             );
           }
         }, "Delete Database")
+      ]
+    })
+  }
+
+  function FormSwitch({ value, onChange, note, disabled, children }) {
+    return jsx("div", {
+      className: ["BackgroundManager-FormSwitch", constants.textStyles?.defaultColor].filter(Boolean).join(" "),
+      children: [
+        jsx("label", {
+          children: [
+            jsx("div", null, children),
+            jsx(BdApi.Components.SwitchInput, { value, onChange, disabled }),
+          ]
+        }),
+        note && jsx("span", {
+          className: constants.textStyles?.["text-sm/normal"],
+          style: { color: "var(--text-secondary)" },
+        }, note)
       ]
     })
   }
@@ -1431,6 +1443,21 @@ module.exports = meta => {
   0% { opacity: 0; }
   100% { opacity: 1; }
 }
+.BackgroundManager-FormSwitch {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 4px 16px;
+  margin-bottom: 20px;
+  & label {
+    display: contents;
+    cursor: pointer;
+  }
+  &:has([disabled]) {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+}
 .BackgroundManager-FormNumberInput {
   display: grid;
   grid-template-columns: 1fr 100px auto;
@@ -1439,7 +1466,6 @@ module.exports = meta => {
   margin-bottom: 20px;
   &:has([disabled]) {
     opacity: 0.5;
-    cursor: not-allowed;
   }
 }
 .BackgroundManager-NumberInput {
@@ -1960,7 +1986,6 @@ module.exports = meta => {
           nativeUI: Webpack.getMangled(m => m.ConfirmModal, { // native ui module
             FocusRing: Filters.byStrings("FocusRing was given a focusTarget"),
             FormTitle: Filters.byStrings(".errorSeparator"),
-            FormSwitch: Filters.byStrings("tooltipNote:", "focusProps:"),
             MenuSliderControl: Filters.byStrings("moveGrabber"),
             Popout: Filters.byStrings("Unsupported animation config:"),
             Spinner: Filters.byStrings(".stopAnimation]:"),
@@ -1968,9 +1993,9 @@ module.exports = meta => {
             useFocusLock: Filters.byStrings("disableReturnRef:"),
           }),
         }
-        Object.assign(modules.nativeUI, {   // Don't need the whole module, just the right function inside it.
-          Button: (([mod, key]) => mod[key])([...Webpack.getWithKey(Filters.byStrings(",submittingFinishedLabel:"))]),
-          TextInput: (([mod, key]) => mod[key])([...Webpack.getWithKey(Filters.byStrings("allowOverflow", "autoFocus"))])
+        Object.assign(modules.nativeUI, {
+          Button: Webpack.getModule(Filters.byStrings(",submittingFinishedLabel:"), { searchExports: true }),
+          TextInput: Webpack.getModule(Filters.byStrings("allowOverflow", "autoFocus"), { searchExports: true }),
         })
         if (!modules.baseLayer || !new Set(["Popout", "Tooltip", "Spinner", "FocusRing"]).isSubsetOf(new Set(Object.keys(modules.nativeUI)))) {
           throw new Error("Missing essential modules.");
