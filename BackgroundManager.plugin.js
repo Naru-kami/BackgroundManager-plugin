@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 1.2.16
+ * @version 1.2.17
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -1831,17 +1831,15 @@ module.exports = meta => {
       })
     }
     function create() {
-      //  The actual targeted function to patch is in this module, but it's not exported ("renderArtisanalHack()" in class "R"):
-      //  -> BdApi.Webpack.getWithKey(BdApi.Webpack.Filters.byStrings(".fullScreenLayers.length", ".darkSidebar", ".getLayers()", ".DARK")).next().value
-      //  However, it's directly calling ThemeProvider, so I'm patching this instead and check for the correct className.
-      const nativeUI = Webpack.getModule(m => m.ConfirmModal);
-      const ThemeProviderKey = nativeUI && Object.keys(nativeUI).filter((key) => (source =>
-        ['gradient:', '"disable-adaptive-theme":'].every(str => source.includes(str))
-      )(nativeUI[key].toString()))[0];
+      // Target: 718813 - renderArtisanalHack()
+      const mod = Webpack.getBySource("\"disable-adaptive-theme\":");
+      const ThemeProviderKey = mod && Object.keys(mod).filter((key) => (source =>
+        ['"disable-adaptive-theme":'].every(str => source.includes(str))
+      )(mod[key].toString()))[0];
       if (!ThemeProviderKey) {
         throw new Error("Cannot patch ThemeProvider");
       }
-      cleanupPatch = Patcher.after(meta.slug, nativeUI, ThemeProviderKey, (_, __, returnVal) => {
+      cleanupPatch = Patcher.after(meta.slug, mod, ThemeProviderKey, (_, __, returnVal) => {
         if (returnVal.props?.children?.props?.className?.includes(constants.baseLayer.bg))
           returnVal.props.children.props.children = jsx(baseLayerBg)
       })
@@ -1983,7 +1981,7 @@ module.exports = meta => {
             slideshow: { ...defaultSettings.slideshow, ...configs?.slideshow },
             adjustment: { ...defaultSettings.adjustment, ...configs?.adjustment }
           },
-          nativeUI: Webpack.getMangled(m => m.ConfirmModal, { // native ui module
+          nativeUI: Webpack.getMangled(m => m.showToast, { // native ui module
             FocusRing: Filters.byStrings("FocusRing was given a focusTarget"),
             FormTitle: Filters.byStrings(".errorSeparator"),
             MenuSliderControl: Filters.byStrings("moveGrabber"),
