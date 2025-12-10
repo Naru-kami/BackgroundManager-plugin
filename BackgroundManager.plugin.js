@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 1.2.17
+ * @version 1.2.18
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -835,7 +835,7 @@ module.exports = meta => {
         }),
         note && jsx("span", {
           className: constants.textStyles?.["text-sm/normal"],
-          style: { color: "var(--text-secondary)" },
+          style: { color: "var(--text-subtle)" },
         }, note)
       ]
     })
@@ -1545,7 +1545,7 @@ module.exports = meta => {
   transition: outline-color 400ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .BackgroundManager-imageWrapper.selected {
-  outline-color: var(--focus-primary, currentColor);
+  outline-color: var(--border-focus, #00b0f4);
 }
 .BackgroundManager-image {
   object-fit: cover;
