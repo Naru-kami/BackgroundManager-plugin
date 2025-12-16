@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 1.2.18
+ * @version 1.2.19
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -349,7 +349,8 @@ module.exports = meta => {
         saveAndCopy,
         lazyCarousel: constants.lazyCarousel ? (givenItem) => {
           try {
-            constants.lazyCarousel({
+            const key = Object.keys(constants.lazyCarousel).find(k => constants.lazyCarousel[k] instanceof Function);
+            constants.lazyCarousel[key]({
               items: images.map(img => ({
                 url: img.src, original: "",
                 zoomThumbnailPlaceholder: img.src,
@@ -398,7 +399,7 @@ module.exports = meta => {
 
     return jsx('div', {
       className: [constants.messagesPopoutClasses?.messageGroupWrapper, constants.markupStyles?.markup, constants.messagesPopoutClasses?.messagesPopout].join(' '),
-      style: { display: "grid", gridTemplateRows: 'auto auto 1fr', overflow: 'hidden', border: '0' },
+      style: { display: "grid", gridTemplateRows: 'auto auto 1fr', overflow: 'hidden', border: 0, borderRadius: 0, margin: 0 },
       children: [
         jsx(InputComponent, { setImages }),
         jsx('div', {
@@ -1598,6 +1599,7 @@ module.exports = meta => {
   flex-wrap: wrap;
   gap: .5rem;
   overflow: auto;
+  max-width: 420px;
   padding: 0.5rem 0.25rem;
   margin-bottom: 0.5rem;
   align-content: start;
@@ -1961,64 +1963,68 @@ module.exports = meta => {
   return {
     start: async () => {
       try {
-        !Object.keys(constants).length && console.log('%c[BackgroundManager] %cInitialized', "color:#DBDCA6;font-weight:bold", "")
-        const configs = Data.load(meta.slug, "settings");
-        const modules = {
-          toolbarClasses: Webpack.getByKeys("iconWrapper", "toolbar"), // classes for toolbar
-          messagesPopoutClasses: Webpack.getByKeys("messagesPopout"), // classes for messages popout
-          textStyles: Webpack.getByKeys("defaultColor"), // classes for general text styles
-          markupStyles: Webpack.getByKeys("markup"),
-          slider: Webpack.getByKeys("sliderContainer", "slider"),
-          layerContainerClass: Webpack.getByKeys("trapClicks"), // classes of Discord"s nativelayer container
-          originalLink: Webpack.getByKeys("originalLink"), // classes for image embed
-          scrollbar: Webpack.getByKeys("thin"), // classes for scrollable content
-          separator: Webpack.getByKeys("scroller", "label"), // classes for separator
-          baseLayer: Webpack.getByKeys("baseLayer", "bg"), // classes of Discord's base layer
-          lazyCarousel: Object.values(Webpack.getBySource(".MEDIA_VIEWER", ".OPEN_MODAL"))[0],  // Module for lazy carousel
-          settings: {
-            ...defaultSettings, ...configs,
-            transition: { ...defaultSettings.transition, ...configs?.transition },
-            slideshow: { ...defaultSettings.slideshow, ...configs?.slideshow },
-            adjustment: { ...defaultSettings.adjustment, ...configs?.adjustment }
-          },
-          nativeUI: Webpack.getMangled(m => m.showToast, { // native ui module
-            FocusRing: Filters.byStrings("FocusRing was given a focusTarget"),
-            FormTitle: Filters.byStrings(".errorSeparator"),
-            MenuSliderControl: Filters.byStrings("moveGrabber"),
-            Popout: Filters.byStrings("Unsupported animation config:"),
-            Spinner: Filters.byStrings(".stopAnimation]:"),
-            Tooltip: Filters.byStrings("this.renderTooltip()]"),
-            useFocusLock: Filters.byStrings("disableReturnRef:"),
-          }),
+        if (!Object.keys(constants).length) {
+          const configs = Data.load(meta.slug, "settings");
+          Object.assign(constants, {
+            ...Webpack.getBulkKeyed({
+              baseLayer: { filter: Filters.byKeys("baseLayer", "bg") }, // 256076
+              layerContainerClass: { filter: Filters.byKeys("trapClicks") }, // 793906
+              lazyCarousel: { filter: Filters.bySource("Media Viewer Modal", "OPEN_MODAL") }, // 312097
+              markupStyles: { filter: Filters.byKeys("markup") }, // 430864
+              messagesPopoutClasses: { filter: Filters.byKeys("messagesPopout", "header") }, // 129633
+              originalLink: { filter: Filters.byKeys("originalLink") }, // 12464
+              scrollbar: { filter: m => m.thin && !m.none }, // 121958
+              separator: { filter: Filters.byKeys("scroller", "label") }, // 334405
+              slider: { filter: m => m.sliderContainer && m.slider && !m.infoContainer }, // 224757
+              textStyles: { filter: Filters.byKeys("defaultMarginlegend") }, // 788877
+              toolbarClasses: { filter: Filters.byKeys("iconWrapper", "toolbar") }, // 191984
+            }),
+            nativeUI: Webpack.getMangled(m => m.showToast, { // 481060
+              FocusRing: Filters.byStrings("FocusRing was given a focusTarget"),
+              FormTitle: Filters.byStrings(".errorSeparator"),
+              MenuSliderControl: Filters.byStrings("moveGrabber"),
+              Popout: Filters.byStrings("Unsupported animation config:"),
+              Spinner: Filters.byStrings(".stopAnimation]:"),
+              Tooltip: Filters.byStrings("this.renderTooltip()]"),
+              useFocusLock: Filters.byStrings("disableReturnRef:"),
+            }),
+            settings: {
+              ...defaultSettings, ...configs,
+              transition: { ...defaultSettings.transition, ...configs?.transition },
+              slideshow: { ...defaultSettings.slideshow, ...configs?.slideshow },
+              adjustment: { ...defaultSettings.adjustment, ...configs?.adjustment }
+            },
+          })
+          constants.nativeUI.TextInput = Webpack.getModule(Filters.byStrings("allowOverflow", "autoFocus"), { searchExports: true }); // 666187
+          constants.nativeUI.Button = Webpack.getModule(Filters.byStrings(",submittingFinishedLabel:"), { searchExports: true }); // 693789
+
+          if (!constants.baseLayer || !new Set(["Popout", "Tooltip", "Spinner", "FocusRing"]).isSubsetOf(new Set(Object.keys(constants.nativeUI)))) {
+            throw new Error("Missing essential modules.");
+          }
+
+          console.log('%c[BackgroundManager] %cInitialized', "color:#DBDCA6;font-weight:bold", "")
         }
-        Object.assign(modules.nativeUI, {
-          Button: Webpack.getModule(Filters.byStrings(",submittingFinishedLabel:"), { searchExports: true }),
-          TextInput: Webpack.getModule(Filters.byStrings("allowOverflow", "autoFocus"), { searchExports: true }),
-        })
-        if (!modules.baseLayer || !new Set(["Popout", "Tooltip", "Spinner", "FocusRing"]).isSubsetOf(new Set(Object.keys(modules.nativeUI)))) {
-          throw new Error("Missing essential modules.");
-        }
-        Object.assign(constants, modules);
+
         generateCSS();
-        // On startup, refresh objectURL of stored selected image. Wait until changes are saved.
+
         await setImageFromIDB(storedImages =>
           storedImages.forEach(e => {
             e.src && URL.revokeObjectURL(e.src);
             e.src = e.selected ? URL.createObjectURL(e.image) : null;
           })
         );
-        // create image containers
+
         viewTransition.create();
-        // set up css property using refreshed objectURL
         constants.settings.overwriteCSS && viewTransition.setProperty(false);
-        // finally, set the selected image, if any, as background. A bit convoluted, but order is important.
+
         await setImageFromIDB(storedImages => {
           const img = storedImages.find(image => image.selected);
           img && viewTransition.setImage(img.src)
         });
-        // Start Slideshow if enabled
+
         constants.settings.slideshow.enabled && slideShowManager.start();
         constants.settings.overwriteCSS && themeObserver.start();
+
         addButton();
       } catch (e) {
         console.error(e);
