@@ -736,7 +736,7 @@ module.exports = meta => {
       }, []);
       /** @type {(target?: HTMLElement) => void} */
       const handleClose = useCallback((target) => {
-        !target || !targetElementRef.current?.contains(target) && setOpen(false);
+        (!target || !targetElementRef.current?.contains(target)) && setOpen(false);
       }, []);
 
       return jsx(internals.Popout, {
