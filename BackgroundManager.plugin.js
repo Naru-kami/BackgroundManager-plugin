@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 2.0.0
+ * @version 2.0.1
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -44,6 +44,8 @@ module.exports = meta => {
     addContextMenu: true
   }
 
+  /** @type {AbortController?} */
+  var controller;
   /** @type {internals} */
   var internals;
   /**
@@ -60,18 +62,15 @@ module.exports = meta => {
 
     internals = {
       ...Webpack.getBulkKeyed({
-        baseLayerClass: { firstId: 6156, filter: Filters.byKeys("baseLayer", "bg") },
+        baseLayerClass: { firstId: 783775, filter: Filters.byKeys("baseLayer", "bg") },
         layerContainerClass: { firstId: 56553, filter: Filters.byKeys("trapClicks") },
         markupClass: { firstId: 992595, filter: Filters.byKeys("markup") },
-        messagesPopoutClass: { firstId: 251066, filter: Filters.byKeys("messagesPopout", "header") },
         originalLinkClass: { firstId: 503117, filter: Filters.byKeys("originalLink") },
         scrollbarClass: { firstId: 457845, filter: m => m.thin && !m.none },
         separatorClass: { firstId: 32271, filter: Filters.byKeys("scroller", "label") },
         sliderClass: { firstId: 375905, filter: m => m.sliderContainer && m.slider && !m.infoContainer },
-        textStylesClass: { firstId: 920531, filter: Filters.byKeys("defaultMarginlegend") },
 
         FocusRing: { firstId: 187322, filter: Filters.byStrings("FocusRing was given a focusTarget"), searchExports: true },
-        FormTitle: { firstId: 742158, filter: Filters.byStrings(".errorSeparator"), searchExports: true },
         LazyCarousel: { firstId: 256905, filter: Filters.byStrings("startingIndex??"), searchExports: true },
         ManaButton: { firstId: 657718, filter: Filters.byStrings(".BUTTON_LOADING_STARTED_LABEL,"), searchExports: true },
         MenuSliderControl: { firstId: 106236, filter: Filters.byStrings("moveGrabber"), searchExports: true },
@@ -81,17 +80,25 @@ module.exports = meta => {
         TrailingPopout: { firstId: 189252, filter: Filters.bySource("HEADER_BAR_BADGE_BOTTOM", "??\"currentColor\",colorClass:") },
         toCDN: { firstId: 803316, filter: Filters.byStrings(".searchParams.delete(\"width\"),"), searchExports: true },
         useFocusLock: { firstId: 315710, filter: Filters.byStrings("disableReturnRef:"), searchExports: true },
-      }),
+      })
     }
     internals.TrailingPopout = Object.values(internals.TrailingPopout)[0];
+
+    controller = new AbortController();
+    Webpack.waitForModule(Filters.byKeys("defaultMarginlegend"), {
+      firstId: 920531, signal: controller?.signal,
+    }).then(m => { internals.textStylesClass = m });
+
+    Webpack.waitForModule(Filters.byKeys("messagesPopout", "header"), {
+      firstId: 251066, signal: controller?.signal,
+    }).then(m => { internals.messagesPopoutClass = m });
 
     if (!internals.baseLayerClass) {
       throw new Error("Missing essential modules.");
     }
     Logger.log(meta.slug, "Initialized");
 
-    if (Data.load(meta.slug, "version") !== meta.version) {
-      Data.save(meta.slug, "version", meta.version);
+    if (Data.load(meta.slug, "version").startsWith("1")) {
       UI.showChangelogModal({
         title: meta.name,
         subtitle: meta.version,
@@ -131,6 +138,7 @@ module.exports = meta => {
         })
       });
     }
+    Data.save(meta.slug, "version", meta.version);
   }
 
   function start() {
@@ -215,6 +223,8 @@ module.exports = meta => {
   }
 
   function stop() {
+    controller?.abort();
+
     utils.enqueueAsync(async () => {
       Store.unsubscribeAll();
       Store.set(store => ({
@@ -810,7 +820,7 @@ module.exports = meta => {
         role: "dialog",
         tabIndex: -1,
         "aria-modal": "true",
-        style: { maxHeight: "90vh", width: "450px" },
+        style: { maxHeight: "85vh", width: "450px" },
         className: internals.messagesPopoutClass?.messagesPopoutWrap,
         children: [
           jsx(Components.PopoutHeader),
@@ -1572,7 +1582,6 @@ module.exports = meta => {
       const [settings, setStore] = Store.useStore(store => store.settings);
 
       return jsx(Fragment, null,
-        // jsx(internals.FormTitle, null, "Popout Button Position"),
         jsx(Components.LocationSelect, {
           label: "Popout Button Position",
           note: "Renders the popout button on the specified location, on either the start or end position.",
@@ -1585,7 +1594,12 @@ module.exports = meta => {
           }
         }),
         jsx("div", { role: "separator", className: internals.separatorClass?.separator }),
-        jsx(internals.FormTitle, null, "Transitions"),
+        jsx(BdApi.Components.Text, {
+          tag: "h2", strong: true,
+          color: BdApi.Components.Text.Colors.HEADER_PRIMARY,
+          size: BdApi.Components.Text.Sizes.SIZE_16,
+          style: { marginBottom: 8 }
+        }, "Transitions"),
         jsx(Components.FormSwitch, {
           label: "Enable Background Transitions",
           value: settings.transition.enabled,
@@ -1609,7 +1623,12 @@ module.exports = meta => {
           }
         }),
         jsx("div", { role: "separator", className: internals.separatorClass?.separator }),
-        jsx(internals.FormTitle, null, "Slideshow"),
+        jsx(BdApi.Components.Text, {
+          tag: "h2", strong: true,
+          color: BdApi.Components.Text.Colors.HEADER_PRIMARY,
+          size: BdApi.Components.Text.Sizes.SIZE_16,
+          style: { marginBottom: 8 }
+        }, "Slideshow"),
         jsx(Components.FormSwitch, {
           label: "Enable Slideshow Mode",
           value: settings.slideshow.enabled,
@@ -2030,7 +2049,7 @@ module.exports = meta => {
             if (!media) continue;
 
             const src = media.proxyUrl ?? media.proxyURL ?? media.proxy_url ?? media.url;
-            const mime = media.contentType;
+            const mime = media.contentType ?? media.content_type;
             src && mime && menu.props.children.props.children.at(-1).props.children.splice(-1, 0, BuildMenuItem(src, mime));
             break;
           }
