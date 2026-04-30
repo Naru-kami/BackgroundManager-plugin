@@ -25,7 +25,9 @@ Two CSS Variables are being exported, to use freely in your themes or customCSS:
     }
 
     /*
-    Or if your theme doesn't set a background image for the context menu (right-click menu), you could manually add it like this.
+    Or if your theme doesn't set a background image
+    for the context menu (right-click menu),
+    you could manually add it like this.
     */
     [class*=menu]::before {
     content: "";
@@ -47,7 +49,10 @@ Two CSS Variables are being exported, to use freely in your themes or customCSS:
     }
 
     /*
-    It is possible to transition between the colors, by registering the it as a custom property. Hoewver, depending on the theme, this might be computationally expensive, and may feel laggy.
+    It is possible to transition between the colors,
+    by registering the it as a custom property.
+    Hoewver, depending on the theme, this might be
+    computationally expensive, and may feel laggy.
     */
     @property --bgm-accentcolor {
         syntax: "<color>";
@@ -59,7 +64,9 @@ Two CSS Variables are being exported, to use freely in your themes or customCSS:
     }
 
     /*
-    Using relative colors, you can extract and modify components of the color. For example, you can make the lightness a constant value, to have a consistent experience across different accent colors:
+    Using relative colors, you can extract and modify components of the color.
+    For example, you can make the lightness a constant value,
+    to have a consistent experience across different accent colors:
     */
     :root {
         --main-color: oklch(

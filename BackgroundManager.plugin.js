@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 2.0.1
+ * @version 2.0.2
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -98,7 +98,7 @@ module.exports = meta => {
     }
     Logger.log(meta.slug, "Initialized");
 
-    if (Data.load(meta.slug, "version").startsWith("1")) {
+    if (Data.load(meta.slug, "version")?.startsWith("1")) {
       UI.showChangelogModal({
         title: meta.name,
         subtitle: meta.version,
