@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 2.0.2
+ * @version 2.0.3
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -98,46 +98,6 @@ module.exports = meta => {
     }
     Logger.log(meta.slug, "Initialized");
 
-    if (Data.load(meta.slug, "version")?.startsWith("1")) {
-      UI.showChangelogModal({
-        title: meta.name,
-        subtitle: meta.version,
-        blurb: "Beside a whole rewrite of the plugin, version 2.0.0 brings two new features.",
-        changes: [{
-          title: "Added",
-          type: "added",
-          items: [
-            "Adaptive Button Position:\n\nYou can choose, whether the button should be rendered in the titlebar, or in the channel toolbar.",
-            "Accent Colors:\n\nA color can be selected among 4 colors picked from the image's color palette. It is exposed as a CSS Variable and can be used in a theme or customCSS.",
-            "Exposed URL:\n\nThe url of the custom background is now exported as a CSS Variable, and can also be used inside a theme or customCSS",
-          ]
-        }],
-        footer: jsx(BdApi.Components.Text, {
-          color: BdApi.Components.Text.Colors.MUTED,
-          children: jsx(Fragment, null,
-            "You can visit the ",
-            jsx(BdApi.Components.Text, {
-              tag: "a",
-              color: BdApi.Components.Text.Colors.LINK,
-              children: "`Readme.md`",
-              target: "_blank",
-              title: "https://github.com/Naru-kami/BackgroundManager-plugin",
-              href: "https://github.com/Naru-kami/BackgroundManager-plugin",
-            }),
-            " file on Github or the description on the ",
-            jsx(BdApi.Components.Text, {
-              tag: "a",
-              color: BdApi.Components.Text.Colors.LINK,
-              children: "BetterDiscord plugin page",
-              target: "_blank",
-              title: "https://betterdiscord.app/plugin/BackgroundManager",
-              href: "https://betterdiscord.app/plugin/BackgroundManager",
-            }),
-            " for more details about how to use these custom variables."
-          )
-        })
-      });
-    }
     Data.save(meta.slug, "version", meta.version);
   }
 
@@ -182,9 +142,9 @@ module.exports = meta => {
 
 
       // Store subscribbles
-      Store.subscribe(() => {
+      Store.subscribe(({ items }) => {
         utils.enqueueAsync(async () => {
-          await utils.saveItems(Store.get().items);
+          await utils.saveItems(items);
         });
       }, ({ items }) => [items]);
 
@@ -242,7 +202,6 @@ module.exports = meta => {
         Controllers[key].stop();
       }
 
-      DOM.removeStyle("BGM-bgurl")
       DOM.removeStyle(meta.slug);
       utils.forceRerender(`.${internals.baseLayerClass?.bg}`);
     });
@@ -409,7 +368,7 @@ module.exports = meta => {
       // mini batch k-means
       const k = 6;
       const max_iters = 50;
-      const batch_size = 1024;
+      const batch_size = 4096;
       const n_pixels = data.length / 4;
 
       let centroids = Array.from({ length: k }, (_, i) => {
@@ -453,7 +412,7 @@ module.exports = meta => {
         }
 
         const new_centroids = sums.map((sum, i) => {
-          return counts[i] > 0 ? sum.map(s => Math.round(s / counts[i])) : centroids[i];
+          return counts[i] > 0 ? sum.map(s => s / counts[i]) : centroids[i];
         });
 
         const converged = centroids.every(((centroid, i) =>
@@ -467,18 +426,24 @@ module.exports = meta => {
         centroids = new_centroids;
       }
 
-      centroids.sort((c1, c2) => {
-        const [L1, C1] = utils.rgbToLch(c1[0] / 255, c1[1] / 255, c1[2] / 255);
-        const [L2, C2] = utils.rgbToLch(c2[0] / 255, c2[1] / 255, c2[2] / 255);
+      centroids = centroids.sort((c1, c2) => {
+        const [L1, A1, B1] = utils.colors.rgbToLab(c1[0] / 255, c1[1] / 255, c1[2] / 255);
+        const [L2, A2, B2] = utils.colors.rgbToLab(c2[0] / 255, c2[1] / 255, c2[2] / 255);
+        const C1 = Math.hypot(A1, B1);
+        const C2 = Math.hypot(A2, B2);
 
-        const v1 = C1 * (1 - (L1 - 0.667) ** 2);
-        const v2 = C2 * (1 - (L2 - 0.667) ** 2);
+        const [L1_cusp, C1_cusp] = utils.colors.findCusp(A1 / C1, B1 / C1);
+        const [L2_cusp, C2_cusp] = utils.colors.findCusp(A2 / C2, B2 / C2);
 
-        return v2 - v1;
-      });
+        // Triangular approximation of gamut border
+        const V1 = C1 * C1_cusp * (L1 < L1_cusp ? L1 / L1_cusp : (1 - L1) / (1 - L1_cusp));
+        const V2 = C2 * C2_cusp * (L2 < L2_cusp ? L2 / L2_cusp : (1 - L2) / (1 - L2_cusp));
+
+        return V2 - V1;
+      }).map(centroid => centroid.map(c => Math.round(c)));
 
       return {
-        signature: "MiniBatchKMeans(5)",
+        signature: utils.colors.signature,
         primary1: centroids[0],
         primary2: centroids[1],
         secondary1: centroids[2],
@@ -486,21 +451,112 @@ module.exports = meta => {
       }
     },
 
-    /** https://bottosson.github.io/posts/oklab/ @param {number} sR float [0-1] @param {number} sG float [0-1] @param {number} sB float [0-1] */
-    rgbToLch(sR, sG, sB) {
-      const r = sR <= 0.04045 ? sR / 12.92 : ((sR + 0.055) / 1.055) ** 2.4;
-      const g = sG <= 0.04045 ? sG / 12.92 : ((sG + 0.055) / 1.055) ** 2.4;
-      const b = sB <= 0.04045 ? sB / 12.92 : ((sB + 0.055) / 1.055) ** 2.4;
+    colors: {
+      signature: "MiniBatchKMeans(6,4096)",
+      /**
+       * https://bottosson.github.io/posts/colorwrong/#what-can-we-do%3F
+       * https://bottosson.github.io/posts/oklab/#converting-from-linear-srgb-to-oklab
+       * sRGB must be normalized, so sRGB ∈ [0,1]
+       * @param {number} sR @param {number} sG @param {number} sB
+       */
+      rgbToLab(sR, sG, sB) {
+        const r = sR <= 0.04045 ? sR / 12.92 : ((sR + 0.055) / 1.055) ** 2.4;
+        const g = sG <= 0.04045 ? sG / 12.92 : ((sG + 0.055) / 1.055) ** 2.4;
+        const b = sB <= 0.04045 ? sB / 12.92 : ((sB + 0.055) / 1.055) ** 2.4;
 
-      const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
-      const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
-      const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+        const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+        const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+        const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
 
-      const L = 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s;
-      const A = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s;
-      const B = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s;
+        return [
+          0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+          1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+          0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s
+        ]
+      },
 
-      return [L, Math.hypot(A, B), Math.atan2(B, A)];
+      /** @param {number} L @param {number} A @param {number} B */
+      oklab_to_linear_srgb(L, A, B) {
+        const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3;
+        const m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3;
+        const s = (L - 0.0894841775 * A - 1.2914855480 * B) ** 3;
+
+        return [
+          +4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+          -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+          -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s,
+        ]
+      },
+
+      /**
+       * https://bottosson.github.io/posts/gamutclipping/#intersection-with-srgb-gamut
+       * A and B must be normalized, so A²+B²=1
+       * @param {number} A @param {number} B
+       */
+      compute_max_saturation(A, B) {
+        let k0, k1, k2, k3, k4, wl, wm, ws;
+
+        if (-1.88170328 * A - 0.80936493 * B > 1) {
+          // Red component
+          k0 = +1.19086277; k1 = +1.76576728; k2 = +0.59662641; k3 = +0.75515197; k4 = +0.56771245;
+          wl = +4.0767416621; wm = -3.3077115913; ws = +0.2309699292;
+        } else if (1.81444104 * A - 1.19445276 * B > 1) {
+          // Green component
+          k0 = +0.73956515; k1 = -0.45954404; k2 = +0.08285427; k3 = +0.12541070; k4 = +0.14503204;
+          wl = -1.2684380046; wm = +2.6097574011; ws = -0.3413193965;
+        } else {
+          // Blue component
+          k0 = +1.35733652; k1 = -0.00915799; k2 = -1.15130210; k3 = -0.50559606; k4 = +0.00692167;
+          wl = -0.0041960863; wm = -0.7034186147; ws = +1.7076147010;
+        }
+
+        // Approximate max saturation using a polynomial:
+        let S = k0 + k1 * A + k2 * B + k3 * A * A + k4 * A * B;
+
+        const k_l = +0.3963377774 * A + 0.2158037573 * B;
+        const k_m = -0.1055613458 * A - 0.0638541728 * B;
+        const k_s = -0.0894841775 * A - 1.2914855480 * B;
+
+        for (let i = 0; i < 20; i++) {
+          const l_ = 1. + S * k_l;
+          const m_ = 1. + S * k_m;
+          const s_ = 1. + S * k_s;
+
+          const l = l_ * l_ * l_;
+          const m = m_ * m_ * m_;
+          const s = s_ * s_ * s_;
+
+          const l_dS = 3. * k_l * l_ * l_;
+          const m_dS = 3. * k_m * m_ * m_;
+          const s_dS = 3. * k_s * s_ * s_;
+
+          const l_dS2 = 6. * k_l * k_l * l_;
+          const m_dS2 = 6. * k_m * k_m * m_;
+          const s_dS2 = 6. * k_s * k_s * s_;
+
+          const f = wl * l + wm * m + ws * s;
+          const f1 = wl * l_dS + wm * m_dS + ws * s_dS;
+          const f2 = wl * l_dS2 + wm * m_dS2 + ws * s_dS2;
+
+          const DS = f * f1 / (f1 * f1 - 0.5 * f * f2);
+          S -= DS;
+
+          if (Math.abs(DS) < Number.EPSILON) break;
+        }
+
+        return S;
+      },
+
+      /** @param {number} A @param {number} B */
+      findCusp(A, B) {
+        const S_cusp = utils.colors.compute_max_saturation(A, B);
+        const [r_max, g_max, b_max] = utils.colors.oklab_to_linear_srgb(1, S_cusp * A, S_cusp * B);
+
+        const L_cusp = Math.cbrt(1 / Math.max(r_max, g_max, b_max));
+        const C_cusp = L_cusp * S_cusp;
+
+        return [L_cusp, C_cusp];
+      }
     },
 
     /** @param {HTMLElement | string} target */
@@ -686,6 +742,7 @@ module.exports = meta => {
     Background() {
       const [activeSrc] = Store.useStore(store => store.activeSrc);
       const [transition] = Store.useStore(store => store.settings.transition);
+      const [dimming] = Store.useStore(store => store.settings.adjustment.dimming);
       const [xPosition] = Store.useStore(store => store.settings.adjustment.xPosition);
       const [yPosition] = Store.useStore(store => store.settings.adjustment.yPosition);
 
@@ -706,15 +763,16 @@ module.exports = meta => {
           "--BGM-transition_duration": utils.clsx(transition.enabled && transition.duration && `${transition.duration}ms`),
           "--BGM-position_x": utils.clsx(xPosition && `${xPosition}%`),
           "--BGM-position_y": utils.clsx(yPosition && `${yPosition}%`),
+          "--BGM-dimming": utils.clsx(dimming && `${dimming}`),
         },
         children: [
           jsx("div", {
             className: utils.clsx("BGM-bg", activeIdx === 0b10 && "active"),
-            style: { backgroundImage: utils.clsx(bgsrc.current[0] != null && `url(${bgsrc.current[0]})`) }
+            style: { backgroundImage: utils.clsx(bgsrc.current[0] != null && `linear-gradient(rgba(0,0,0,var(--BGM-dimming, 0))), url(${bgsrc.current[0]})`) },
           }),
           jsx("div", {
             className: utils.clsx("BGM-bg", activeIdx === 0b11 && "active"),
-            style: { backgroundImage: utils.clsx(bgsrc.current[1] != null && `url(${bgsrc.current[1]})`) }
+            style: { backgroundImage: utils.clsx(bgsrc.current[1] != null && `linear-gradient(rgba(0,0,0,var(--BGM-dimming, 0))), url(${bgsrc.current[1]})`) },
           }),
           jsx(Components.BackgroundOverlay)
         ],
@@ -727,7 +785,6 @@ module.exports = meta => {
       return jsx("div", {
         className: "BGM-bg_overlay",
         style: {
-          "--BGM-dimming": utils.clsx(adjustment.dimming && `${adjustment.dimming}`),
           "--BGM-blur": utils.clsx(adjustment.blur && `${adjustment.blur}px`),
           "--BGM-grayscale": utils.clsx(adjustment.grayscale && `${adjustment.grayscale}%`),
           "--BGM-saturation": utils.clsx(adjustment.saturate !== 100 && `${adjustment.saturate}%`),
@@ -867,16 +924,18 @@ module.exports = meta => {
           const currIdx = items.findIndex(e => e.selected);
           const weights = new Array(items.length).fill(1);
 
-          if (currIdx in weights) {
+          if (currIdx in items) {
             weights[currIdx] = 0;
             items[currIdx] = { ...items[currIdx], selected: false };
           }
 
-          const newIdx = utils.randomChoice(weights);
+          const newIdx = store.settings.slideshow.shuffle ?
+            utils.randomChoice(weights) :
+            (currIdx + 1 + items.length) % items.length;
           items[newIdx] = { ...items[newIdx], selected: true };
 
-          return { items: items, activeSrc: items[newIdx].src }
-        })
+          return currIdx !== newIdx ? { items, activeSrc: items[newIdx].src } : {};
+        });
       }, []);
 
       /** @type {(item: ImageItem) => void} */
@@ -1427,7 +1486,7 @@ module.exports = meta => {
                   },
                   onSlide: dimming => {
                     setStore((store) => {
-                      store.settings.adjustment = { ...store.settings.adjustment, dimming };
+                      store.settings.adjustment.dimming = dimming;
                       return store;
                     });
                   },
@@ -1540,7 +1599,7 @@ module.exports = meta => {
 
       /** @param {typeof defaultSettings["accentColor"]["color"]} colorKey */
       const handleClick = (colorKey) => {
-        if (!(selectedImage.color?.hasOwnProperty(colorKey))) return;
+        if (!selectedImage.color || !(colorKey in selectedImage.color)) return;
 
         setStore(store => ({
           settings: {
@@ -1558,12 +1617,12 @@ module.exports = meta => {
           "BGM-color_picker",
           internals.separatorClass?.labelContainer
         ),
-        children: ["Primary 1", "Primary 2", "Secondary 1", "Secondary 2"].map(label => {
-          /** @type {typeof defaultSettings["accentColor"]["color"]} */
-          const colorKey = label.toLowerCase().replace(/\s/g, "");
+        children: ["Primary 1", "Primary 2", "Secondary 1", "Secondary 2"].map((label, i) => {
+          const colorKey = /** @type {const} */ (["primary1", "primary2", "secondary1", "secondary2"])[i];
+          if (!selectedImage.color || !(colorKey in selectedImage.color)) return null;
 
           return jsx(internals.Tooltip, {
-            text: label,
+            text: `${label}: #${selectedImage.color[colorKey].map(v => v.toString(16).toUpperCase()).join("")}`,
             asContainer: true,
             hideOnClick: false,
             children: jsx("div", {
@@ -1571,7 +1630,7 @@ module.exports = meta => {
               role: "button",
               className: utils.clsx("BGM-color_item", colorKey === accentColor.color && "selected"),
               onClick: () => handleClick(colorKey),
-              style: { backgroundColor: `rgb(${selectedImage.color?.[colorKey]?.join(", ")})` }
+              style: { backgroundColor: `rgb(${selectedImage.color[colorKey].join(", ")})` }
             })
           })
         })
@@ -2083,7 +2142,9 @@ module.exports = meta => {
             items[currIdx] = { ...items[currIdx], selected: false };
           }
 
-          const newIdx = store.settings.slideshow.shuffle ? utils.randomChoice(weights) : (currIdx + 1 + items.length) % items.length;
+          const newIdx = store.settings.slideshow.shuffle ?
+            utils.randomChoice(weights) :
+            (currIdx + 1 + items.length) % items.length;
           items[newIdx] = { ...items[newIdx], selected: true };
 
           return currIdx !== newIdx ? { items, activeSrc: items[newIdx].src } : {};
@@ -2180,18 +2241,24 @@ module.exports = meta => {
         return foundProperties;
       }
 
-      /** @param {string | null} src @param {number} timeout */
-      function setUrl(src, timeout) {
+      /** @param {string | null} src @param {number} delay */
+      function setUrl(src, delay) {
         timer && clearTimeout(timer);
         timer = setTimeout(() => {
           timer = null;
-          src ? DOM.addStyle("BGM-bgurl", `:root { --bgm-url: url("${src}") }`) : DOM.removeStyle("BGM-bgurl");
-        }, timeout);
+          if (src) {
+            Store.get().settings.overwriteCSS && setThemeProperty(true);
+            DOM.addStyle("BGM-bgurl", `:root { --bgm-url: url("${src}") }`);
+          } else {
+            DOM.removeStyle("BGM-theme_properties");
+            DOM.removeStyle("BGM-bgurl");
+          }
+        }, delay);
       }
 
       /** @param {boolean} enabled */
-      function setStyle(enabled) {
-        if (!enabled) {
+      function setThemeProperty(enabled) {
+        if (!enabled || !cssProps.length) {
           DOM.removeStyle("BGM-theme_properties");
           return;
         }
@@ -2204,10 +2271,13 @@ module.exports = meta => {
 
         function callback() {
           cssProps = getCssProps();
-          setStyle(!!Store.get().activeSrc);
+          setThemeProperty(!!Store.get().activeSrc);
         };
 
-        callback();
+        cssProps = getCssProps();
+        const store = Store.get();
+        setUrl(store.activeSrc, !store.activeSrc ? store.settings.transition.duration : 0);
+
         nodeObserver = new MutationObserver(callback);
         const themes = document.querySelector("bd-head bd-themes");
         themes && nodeObserver.observe(themes, { childList: true });
@@ -2217,6 +2287,7 @@ module.exports = meta => {
         DOM.removeStyle("BGM-theme_properties");
         nodeObserver?.disconnect();
         nodeObserver = null;
+        cssProps = [];
       }
 
       function stop() {
@@ -2226,7 +2297,7 @@ module.exports = meta => {
         disconnect();
       }
 
-      return { stop, observe, disconnect, setStyle, setUrl }
+      return { stop, observe, disconnect, setUrl }
     })(),
     accentColor: (() => {
       /** @type {number | null} */
@@ -2249,8 +2320,9 @@ module.exports = meta => {
           stop();
           return;
         }
-        if (items[idx].color?.signature === "MiniBatchKMeans(5)") {
-          setColor(items[idx].color[items[idx].color?.hasOwnProperty(colorKey) ? colorKey : "primary1"], timer);
+        if (items[idx].color?.signature === utils.colors.signature) {
+
+          setColor(items[idx].color[colorKey in items[idx].color ? colorKey : "primary1"], timer);
           return;
         }
 
@@ -2258,7 +2330,7 @@ module.exports = meta => {
         utils.enqueueAsync(async () => {
           const color = await utils.getAverageColors(items[idx]);
           items[idx] = { ...items[idx], color };
-          setColor(color[items[idx].color?.hasOwnProperty(colorKey) ? colorKey : "primary1"], Math.max(0, timer - (Date.now() - t0)));
+          setColor(color[colorKey in color ? colorKey : "primary1"], Math.max(0, timer - (Date.now() - t0)));
           Store.set({ items }); // Don't rerender, just update the color.
         });
       }
@@ -2353,7 +2425,7 @@ module.exports = meta => {
   .BGM-bg_overlay {
     position: absolute;
     inset: 0;
-    backdrop-filter: blur(var(--BGM-blur, 0px)) brightness(clamp(0, 1 - var(--BGM-dimming, 0), 1)) grayscale(var(--BGM-grayscale, 0%)) contrast(var(--BGM-contrast, 100%)) saturate(var(--BGM-saturation, 100%));
+    backdrop-filter: blur(var(--BGM-blur, 0px)) grayscale(var(--BGM-grayscale, 0%)) contrast(var(--BGM-contrast, 100%)) saturate(var(--BGM-saturation, 100%));
   }
 }
 
@@ -2477,6 +2549,7 @@ module.exports = meta => {
   object-fit: cover;
   min-height: 100%;
   min-width: 100%;
+  user-select: none;
 }
 
 .BGM-image_data {
@@ -2539,7 +2612,7 @@ module.exports = meta => {
     margin-right: auto;
     padding-right: 0.5rem;
     cursor: inherit;
-    flex: 1 0 calc(100% - 7.5rem);
+    flex: 1 0 calc(100% - max(22%, 100px));
   }
 
   textarea, input {
