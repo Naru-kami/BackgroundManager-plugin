@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 2.0.3
+ * @version 2.0.4
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -68,7 +68,7 @@ module.exports = meta => {
         originalLinkClass: { firstId: 503117, filter: Filters.byKeys("originalLink") },
         scrollbarClass: { firstId: 457845, filter: m => m.thin && !m.none },
         separatorClass: { firstId: 32271, filter: Filters.byKeys("scroller", "label") },
-        sliderClass: { firstId: 375905, filter: m => m.sliderContainer && m.slider && !m.infoContainer },
+        sliderClass: { firstId: 59828, filter: m => m.sliderContainer && m.slider && !m.infoContainer },
 
         FocusRing: { firstId: 187322, filter: Filters.byStrings("FocusRing was given a focusTarget"), searchExports: true },
         LazyCarousel: { firstId: 256905, filter: Filters.byStrings("startingIndex??"), searchExports: true },
@@ -314,7 +314,7 @@ module.exports = meta => {
     },
 
     /**
-     * @typedef {{ image: File, selected: boolean, src: string, id: number, width: number, height: number, color?: {signature: string, primary1: number[], primary2: number[], secondary1: number[],  secondary2: number[] } }} ImageItem
+     * @typedef {{ image: File, selected: boolean, src: string, id: number, width: number, height: number, color?: {signature: string, primary1: Uint8ClampedArray, primary2: Uint8ClampedArray, secondary1: Uint8ClampedArray,  secondary2: Uint8ClampedArray } }} ImageItem
      * @returns {Promise<ImageItem[]>}
      */
     getItems() {
@@ -366,93 +366,107 @@ module.exports = meta => {
       const { data } = ctx.getImageData(0, 0, image.width, image.height);
 
       // mini batch k-means
-      const k = 6;
       const max_iters = 50;
-      const batch_size = 4096;
+      const batch_size = 2048;
       const n_pixels = data.length / 4;
+      const k = utils.clamp(1, n_pixels, 6);
 
-      let centroids = Array.from({ length: k }, (_, i) => {
-        const idx = Math.floor(i / k * n_pixels);
-        return Array.from({ length: 3 }, (_, i) => data[idx * 4 + i]);
-      });
-
-      const getBatch = () => {
-        const batchIdx = new Set();
-        const batch = [];
-        while (batchIdx.size < batch_size) {
-          const idx = Math.floor(Math.random() * n_pixels);
-          if (batchIdx.has(idx)) continue;
-
-          batchIdx.add(idx);
-          batch.push(data[idx * 4 + 0], data[idx * 4 + 1], data[idx * 4 + 2]);
-        }
-        return batch;
+      const sums = new Uint32Array(k * 3);
+      const counts = new Uint32Array(k);
+      const new_centroids = new Float64Array(k * 3);
+      const centroids = new Float64Array(k * 3);
+      for (let i = 0; i < k; i++) {
+        const idx = Math.floor((i + 1) / (k + 1) * n_pixels);
+        centroids[i * 3 + 0] = data[idx * 4 + 0];
+        centroids[i * 3 + 1] = data[idx * 4 + 1];
+        centroids[i * 3 + 2] = data[idx * 4 + 2];
       }
 
       for (let iter = 0; iter < max_iters; iter++) {
-        const batch = getBatch();
-        const distances = Array.from({ length: batch.length / 3 }, (_, i) =>
-          centroids.map(center => Math.hypot(
-            center[0] - batch[i * 3 + 0],
-            center[1] - batch[i * 3 + 1],
-            center[2] - batch[i * 3 + 2]
-          ))
-        );
+        for (let i = 0; i < batch_size; i++) {
+          // getBatch()
+          const idx = Math.floor(Math.random() * n_pixels);
+          const r = data[idx * 4 + 0];
+          const g = data[idx * 4 + 1];
+          const b = data[idx * 4 + 2];
 
-        const labels = distances.map(distArr => distArr.reduce((minIdx, dist, idx) => dist < distArr[minIdx] ? idx : minIdx, 0));
+          // distances
+          let bestIdx = 0;
+          let bestDist = 195075; // 3*255*255 - maximum distance
+          for (let c = 0; c < k; c++) {
+            const dr = centroids[c * 3 + 0] - r;
+            const dg = centroids[c * 3 + 1] - g;
+            const db = centroids[c * 3 + 2] - b;
+            const dist = dr * dr + dg * dg + db * db;
+            if (dist < bestDist) {
+              // labels
+              bestDist = dist;
+              bestIdx = c;
+            }
+          }
 
-        const sums = Array.from({ length: k }, () => [0, 0, 0]);
-        const counts = new Array(k).fill(0);
-
-        for (let h = 0; h < batch.length / 3; h++) {
-          sums[labels[h]][0] += batch[h * 3 + 0];
-          sums[labels[h]][1] += batch[h * 3 + 1];
-          sums[labels[h]][2] += batch[h * 3 + 2];
-          counts[labels[h]]++;
+          // new averages
+          sums[bestIdx * 3 + 0] += r;
+          sums[bestIdx * 3 + 1] += g;
+          sums[bestIdx * 3 + 2] += b;
+          counts[bestIdx]++;
         }
 
-        const new_centroids = sums.map((sum, i) => {
-          return counts[i] > 0 ? sum.map(s => s / counts[i]) : centroids[i];
-        });
+        let converged = true;
+        for (let i = 0; i < k; i++) {
+          if (counts[i] > 0) {
+            new_centroids[i * 3 + 0] = sums[i * 3 + 0] / counts[i];
+            new_centroids[i * 3 + 1] = sums[i * 3 + 1] / counts[i];
+            new_centroids[i * 3 + 2] = sums[i * 3 + 2] / counts[i];
+          } else {
+            new_centroids[i * 3 + 0] = centroids[i * 3 + 0];
+            new_centroids[i * 3 + 1] = centroids[i * 3 + 1];
+            new_centroids[i * 3 + 2] = centroids[i * 3 + 2];
+          }
 
-        const converged = centroids.every(((centroid, i) =>
-          Math.abs(new_centroids[i][0] - centroid[0]) < 1e-4 &&
-          Math.abs(new_centroids[i][1] - centroid[1]) < 1e-4 &&
-          Math.abs(new_centroids[i][2] - centroid[2]) < 1e-4
-        ))
+          const dr = new_centroids[i * 3 + 0] - centroids[i * 3 + 0];
+          const dg = new_centroids[i * 3 + 1] - centroids[i * 3 + 1];
+          const db = new_centroids[i * 3 + 2] - centroids[i * 3 + 2];
+          if (dr * dr + dg * dg + db * db > 1e-8) converged = false;
+        }
 
         if (converged) break;
 
-        centroids = new_centroids;
+        sums.fill(0);
+        counts.fill(0);
+        centroids.set(new_centroids);
       }
 
-      centroids = centroids.sort((c1, c2) => {
-        const [L1, A1, B1] = utils.colors.rgbToLab(c1[0] / 255, c1[1] / 255, c1[2] / 255);
-        const [L2, A2, B2] = utils.colors.rgbToLab(c2[0] / 255, c2[1] / 255, c2[2] / 255);
-        const C1 = Math.hypot(A1, B1);
-        const C2 = Math.hypot(A2, B2);
+      const accents = new Array(k).fill(null)
+        .map((_, i) => [centroids[i * 3 + 0], centroids[i * 3 + 1], centroids[i * 3 + 2]])
+        .sort((c1, c2) => {
+          const [L1, A1, B1] = utils.colors.rgbToLab(c1[0] / 255, c1[1] / 255, c1[2] / 255);
+          const [L2, A2, B2] = utils.colors.rgbToLab(c2[0] / 255, c2[1] / 255, c2[2] / 255);
+          const C1 = Math.hypot(A1, B1);
+          const C2 = Math.hypot(A2, B2);
 
-        const [L1_cusp, C1_cusp] = utils.colors.findCusp(A1 / C1, B1 / C1);
-        const [L2_cusp, C2_cusp] = utils.colors.findCusp(A2 / C2, B2 / C2);
+          const [L1_cusp] = utils.colors.findCusp(A1 / C1, B1 / C1);
+          const [L2_cusp] = utils.colors.findCusp(A2 / C2, B2 / C2);
 
-        // Triangular approximation of gamut border
-        const V1 = C1 * C1_cusp * (L1 < L1_cusp ? L1 / L1_cusp : (1 - L1) / (1 - L1_cusp));
-        const V2 = C2 * C2_cusp * (L2 < L2_cusp ? L2 / L2_cusp : (1 - L2) / (1 - L2_cusp));
+          // Triangular approximation of gamut border
+          const V1 = C1 * (L1 < L1_cusp ? L1 / L1_cusp : (1 - L1) / (1 - L1_cusp));
+          const V2 = C2 * (L2 < L2_cusp ? L2 / L2_cusp : (1 - L2) / (1 - L2_cusp));
 
-        return V2 - V1;
-      }).map(centroid => centroid.map(c => Math.round(c)));
+          return V2 - V1;
+        })
+        .map(c => new Uint8ClampedArray(c));
 
       return {
         signature: utils.colors.signature,
-        primary1: centroids[0],
-        primary2: centroids[1],
-        secondary1: centroids[2],
-        secondary2: centroids[3],
+        primary1: accents[0],
+        primary2: accents[1],
+        secondary1: accents[2],
+        secondary2: accents[3],
       }
     },
 
     colors: {
-      signature: "MiniBatchKMeans(6,4096)",
+      signature: "MiniBatchKMeans(6,2048)",
       /**
        * https://bottosson.github.io/posts/colorwrong/#what-can-we-do%3F
        * https://bottosson.github.io/posts/oklab/#converting-from-linear-srgb-to-oklab
@@ -657,7 +671,7 @@ module.exports = meta => {
      *  onStart?: (e: React.PointerEvent<HTMLElement>) => void,
      *  onChange?: (e: React.PointerEvent<HTMLElement>) => void,
      *  onSubmit?: (e: React.PointerEvent<HTMLElement>) => void
-     * }}
+     * }} props
      */
     usePointerCapture({ onStart, onChange, onSubmit, buttons = 7 }) {
       /** @type {React.RefObject<number?>} */
@@ -842,12 +856,12 @@ module.exports = meta => {
           layerContainer.style.setProperty('z-index', '2002');
         }
 
-        addEventListener("mousedown", e => {
+        addEventListener("pointerdown", e => {
           if (!(e.target instanceof HTMLElement)) return;
-          mouseDownOnPopout = layerContainer.contains(e.target);
-        }, ctrl);
+          mouseDownOnPopout = layerContainer.contains(e.target) || layerContainer.ariaHidden === "true";
+        }, { signal: ctrl.signal, capture: true });
 
-        addEventListener("mouseup", e => {
+        addEventListener("pointerup", e => {
           if (
             e.target instanceof HTMLElement &&
             !mouseDownOnPopout &&                 // Click did not start on popout
@@ -855,10 +869,14 @@ module.exports = meta => {
           ) {
             onClose?.(e.target);
           }
-        }, ctrl);
+        }, { signal: ctrl.signal, capture: true });
 
         addEventListener("keydown", e => {
-          if (e.key === "Escape" && layerContainer.childElementCount === 1) {
+          if (
+            e.key === "Escape" &&
+            layerContainer.childElementCount === 1 &&
+            layerContainer.ariaHidden !== "true"
+          ) {
             e.stopPropagation();
             onClose?.();
           }
@@ -1622,7 +1640,7 @@ module.exports = meta => {
           if (!selectedImage.color || !(colorKey in selectedImage.color)) return null;
 
           return jsx(internals.Tooltip, {
-            text: `${label}: #${selectedImage.color[colorKey].map(v => v.toString(16).toUpperCase()).join("")}`,
+            text: `${label}: ${selectedImage.color[colorKey].reduce((p, c) => `${p}${c.toString(16).toUpperCase().padStart(2, "0")}`, "#")}`,
             asContainer: true,
             hideOnClick: false,
             children: jsx("div", {
@@ -1784,7 +1802,7 @@ module.exports = meta => {
       )
     },
 
-    /** @param {{location: "TitleBar" | "ToolBar", position: "end" | "start", note?: string, label?: string, onChange: (loc: {location: "TitleBar" | "ToolBar", position: "end" | "start"}) => void}} */
+    /** @param {{location: "TitleBar" | "ToolBar", position: "end" | "start", note?: string, label?: string, onChange: (loc: {location: "TitleBar" | "ToolBar", position: "end" | "start"}) => void}} props */
     LocationSelect({ location, position, label, note, onChange }) {
       const locationOptions = useRef([{ label: "Title Bar", value: "TitleBar" }, { label: "Tool Bar", value: "ToolBar" }]);
       const positionOptions = useRef([{ label: "Start", value: "start" }, { label: "End", value: "end" }]);
@@ -2303,7 +2321,7 @@ module.exports = meta => {
       /** @type {number | null} */
       let timer = null;
 
-      /** @param {number[]} color @param {number} timeout */
+      /** @param {Uint8ClampedArray} color @param {number} timeout */
       function setColor(color, timeout) {
         timer && clearTimeout(timer);
         timer = setTimeout(/**@param {typeof color} c*/(c) => {
