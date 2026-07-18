@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 2.0.4
+ * @version 2.0.5
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -68,7 +68,7 @@ module.exports = meta => {
         originalLinkClass: { firstId: 503117, filter: Filters.byKeys("originalLink") },
         scrollbarClass: { firstId: 457845, filter: m => m.thin && !m.none },
         separatorClass: { firstId: 32271, filter: Filters.byKeys("scroller", "label") },
-        sliderClass: { firstId: 59828, filter: m => m.sliderContainer && m.slider && !m.infoContainer },
+        sliderClass: { firstId: 598286, filter: m => m.sliderContainer && m.slider && !m.infoContainer },
 
         FocusRing: { firstId: 187322, filter: Filters.byStrings("FocusRing was given a focusTarget"), searchExports: true },
         LazyCarousel: { firstId: 256905, filter: Filters.byStrings("startingIndex??"), searchExports: true },
@@ -76,7 +76,7 @@ module.exports = meta => {
         MenuSliderControl: { firstId: 106236, filter: Filters.byStrings("moveGrabber"), searchExports: true },
         Popout: { firstId: 922016, filter: Filters.byStrings("Unsupported animation config:"), searchExports: true },
         TextInput: { firstId: 260598, filter: Filters.byStrings('"data-mana-component":"text-area"'), searchExports: true },
-        Tooltip: { firstId: 990078, filter: Filters.byStrings("tooltipId", "defaultLayerContext"), searchExports: true },
+        Tooltip: { firstId: 866665, filter: Filters.byStrings("tooltipId", "onExitComplete"), searchExports: true },
         TrailingPopout: { firstId: 189252, filter: Filters.bySource("HEADER_BAR_BADGE_BOTTOM", "??\"currentColor\",colorClass:") },
         toCDN: { firstId: 803316, filter: Filters.byStrings(".searchParams.delete(\"width\"),"), searchExports: true },
         useFocusLock: { firstId: 315710, filter: Filters.byStrings("disableReturnRef:"), searchExports: true },
