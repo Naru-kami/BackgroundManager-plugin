@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 2.0.5
+ * @version 2.0.6
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -32,6 +32,7 @@ module.exports = meta => {
     },
     /** @type {{location: "TitleBar" | "ToolBar", position: "end" | "start"}} */
     buttonLocation: { location: "TitleBar", position: "end" },
+    confirmDelete: false,
     adjustment: {
       xPosition: 0,
       yPosition: 0,
@@ -62,20 +63,20 @@ module.exports = meta => {
 
     internals = {
       ...Webpack.getBulkKeyed({
-        baseLayerClass: { firstId: 783775, filter: Filters.byKeys("baseLayer", "bg") },
-        layerContainerClass: { firstId: 56553, filter: Filters.byKeys("trapClicks") },
-        markupClass: { firstId: 992595, filter: Filters.byKeys("markup") },
-        originalLinkClass: { firstId: 503117, filter: Filters.byKeys("originalLink") },
-        scrollbarClass: { firstId: 457845, filter: m => m.thin && !m.none },
-        separatorClass: { firstId: 32271, filter: Filters.byKeys("scroller", "label") },
-        sliderClass: { firstId: 598286, filter: m => m.sliderContainer && m.slider && !m.infoContainer },
+        baseLayerClass: { firstId: 913420, filter: Filters.byKeys("baseLayer", "bg") },
+        layerContainerClass: { firstId: 38112, filter: Filters.byKeys("trapClicks") },
+        markupClass: { firstId: 165648, filter: Filters.byKeys("markup") },
+        originalLinkClass: { firstId: 774702, filter: Filters.byKeys("originalLink") },
+        scrollbarClass: { firstId: 465410, filter: m => m.thin && !m.none },
+        separatorClass: { firstId: 798819, filter: Filters.byKeys("scroller", "label") },
+        sliderClass: { firstId: 889553, filter: m => m.sliderContainer && m.slider && !m.infoContainer },
 
-        FocusRing: { firstId: 187322, filter: Filters.byStrings("FocusRing was given a focusTarget"), searchExports: true },
+        FocusRing: { firstId: 559106, filter: Filters.byStrings("FocusRing was given a focusTarget"), searchExports: true },
         LazyCarousel: { firstId: 256905, filter: Filters.byStrings("startingIndex??"), searchExports: true },
         ManaButton: { firstId: 657718, filter: Filters.byStrings(".BUTTON_LOADING_STARTED_LABEL,"), searchExports: true },
-        MenuSliderControl: { firstId: 106236, filter: Filters.byStrings("moveGrabber"), searchExports: true },
+        MenuSliderControl: { firstId: 299163, filter: Filters.byStrings("moveGrabber"), searchExports: true },
         Popout: { firstId: 922016, filter: Filters.byStrings("Unsupported animation config:"), searchExports: true },
-        TextInput: { firstId: 260598, filter: Filters.byStrings('"data-mana-component":"text-area"'), searchExports: true },
+        TextInput: { firstId: 103557, filter: Filters.byStrings('"data-mana-component":"text-area"'), searchExports: true },
         Tooltip: { firstId: 866665, filter: Filters.byStrings("tooltipId", "onExitComplete"), searchExports: true },
         TrailingPopout: { firstId: 189252, filter: Filters.bySource("HEADER_BAR_BADGE_BOTTOM", "??\"currentColor\",colorClass:") },
         toCDN: { firstId: 803316, filter: Filters.byStrings(".searchParams.delete(\"width\"),"), searchExports: true },
@@ -98,6 +99,26 @@ module.exports = meta => {
     }
     Logger.log(meta.slug, "Initialized");
 
+    if (Data.load(meta.slug, "version") !== meta.version) {
+      UI.showChangelogModal({
+        title: meta.name,
+        subtitle: meta.version,
+        changes: [{
+          title: "Added",
+          type: "added",
+          items: [
+            "A confirmation modal has been added when deleting images in the popout. You can disable it in the settings to restore previous behavior."
+          ]
+        }, {
+          title: "Fixed",
+          type: "fixed",
+          items: [
+            "Context menu icon is now showing up again.",
+            "Image thumbnails for the carousel view are showing up again."
+          ]
+        }],
+      });
+    }
     Data.save(meta.slug, "version", meta.version);
   }
 
@@ -134,9 +155,13 @@ module.exports = meta => {
         }
       });
 
-      // Make blobs show in image modals
-      const [SrcSetter, SrcSetterKey] = Webpack.getWithKey(Filters.byStrings("sourceWidth:", "sourceHeight:"));
-      SrcSetterKey && Patcher.after(meta.slug, SrcSetter, SrcSetterKey, (_, [props]) => {
+      // Make blobs show in image modals and zoomThumbnails
+      const [srcSetter, srcSetterKey] = Webpack.getWithKey(Filters.byStrings("sourceWidth:", "sourceHeight:"));
+      srcSetterKey && Patcher.after(meta.slug, srcSetter, srcSetterKey, (_, [props]) => {
+        if (props?.src?.startsWith("blob:")) return props.src;
+      });
+      const [thumbSetter, thumbSetterKey] = Webpack.getWithKey(Filters.byStrings("ImageLoaderUtils.getSrcWithWidthAndHeight"));
+      thumbSetterKey && Patcher.after(meta.slug, thumbSetter, thumbSetterKey, (_, [props]) => {
         if (props?.src?.startsWith("blob:")) return props.src;
       });
 
@@ -1017,6 +1042,7 @@ module.exports = meta => {
        * @returns { React.JSX.Element }
        */
       ({ item, selected, onSelect, onDelete }) => {
+        const [confirmDelete] = Store.useStore(store => store.settings.confirmDelete);
         const [error, setError] = useState(false);
         const [loading, startTransition] = React.useTransition();
 
@@ -1109,8 +1135,20 @@ module.exports = meta => {
         /** @type {(e: React.MouseEvent<HTMLElement, MouseEvent>) => void} */
         const handleDelete = useCallback(e => {
           e.stopPropagation();
-          onDelete(item);
-        }, [onDelete, item]);
+          if (confirmDelete) {
+            UI.showConfirmationModal(
+              "Delete Image",
+              "Are you sure you want to delete this image?",
+              {
+                danger: true,
+                confirmText: "Delete",
+                onConfirm: () => { onDelete(item) }
+              }
+            )
+          } else {
+            onDelete(item);
+          }
+        }, [onDelete, item, confirmDelete]);
 
         useLayoutEffect(() => {
           startTransition(async () => new Promise(resolve => {
@@ -1426,6 +1464,15 @@ module.exports = meta => {
             action() {
               setStore(({ settings }) => ({
                 settings: { ...settings, addContextMenu: !settings.addContextMenu }
+              }));
+            }
+          }, {
+            label: "Confirm Deletion",
+            type: "toggle",
+            checked: settings.current.confirmDelete,
+            action() {
+              setStore(({ settings }) => ({
+                settings: { ...settings, confirmDelete: !settings.confirmDelete }
               }));
             }
           }, {
@@ -1771,6 +1818,16 @@ module.exports = meta => {
             }))
           }
         }),
+        jsx(Components.FormSwitch, {
+          label: "Confirm Image Deletion",
+          value: settings.confirmDelete,
+          note: "If enabled, it will ask for confirmation before deleting an image.",
+          onChange: confirmDelete => {
+            setStore(store => ({
+              settings: { ...store.settings, confirmDelete }
+            }))
+          }
+        }),
         jsx("div", { role: "separator", className: internals.separatorClass?.separator }),
         jsx(internals.ManaButton, {
           variant: "critical-primary",
@@ -2039,11 +2096,14 @@ module.exports = meta => {
         return jsx(ContextMenu.Group, null, jsx(ContextMenu.Item, {
           id: "Add-to-BGM",
           label: "Add to Background Manager",
-          icon: /** @param {{className: string}} props */({ className }) => jsx(Components.Icon, {
-            d: utils.paths.AddImage,
-            className,
-            size: 16,
-          }),
+          leadingAccessory: {
+            type: "icon",
+            icon: /** @param {{className: string}} props */({ className }) => jsx(Components.Icon, {
+              d: utils.paths.AddImage,
+              className,
+              size: 16,
+            }),
+          },
           action: async () => {
             const mediaURL = internals.toCDN(src, mime);
             try {
