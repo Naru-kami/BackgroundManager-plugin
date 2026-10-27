@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 2.0.6
+ * @version 2.0.7
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -67,9 +67,8 @@ module.exports = meta => {
         layerContainerClass: { firstId: 38112, filter: Filters.byKeys("trapClicks") },
         markupClass: { firstId: 165648, filter: Filters.byKeys("markup") },
         originalLinkClass: { firstId: 774702, filter: Filters.byKeys("originalLink") },
-        scrollbarClass: { firstId: 465410, filter: m => m.thin && !m.none },
+        scrollbarClass: { firstId: 465410, filter: Filters.byKeys("thin", "customTheme") },
         separatorClass: { firstId: 798819, filter: Filters.byKeys("scroller", "label") },
-        sliderClass: { firstId: 889553, filter: m => m.sliderContainer && m.slider && !m.infoContainer },
 
         FocusRing: { firstId: 559106, filter: Filters.byStrings("FocusRing was given a focusTarget"), searchExports: true },
         LazyCarousel: { firstId: 256905, filter: Filters.byStrings("startingIndex??"), searchExports: true },
@@ -99,26 +98,6 @@ module.exports = meta => {
     }
     Logger.log(meta.slug, "Initialized");
 
-    if (Data.load(meta.slug, "version") !== meta.version) {
-      UI.showChangelogModal({
-        title: meta.name,
-        subtitle: meta.version,
-        changes: [{
-          title: "Added",
-          type: "added",
-          items: [
-            "A confirmation modal has been added when deleting images in the popout. You can disable it in the settings to restore previous behavior."
-          ]
-        }, {
-          title: "Fixed",
-          type: "fixed",
-          items: [
-            "Context menu icon is now showing up again.",
-            "Image thumbnails for the carousel view are showing up again."
-          ]
-        }],
-      });
-    }
     Data.save(meta.slug, "version", meta.version);
   }
 
@@ -2060,7 +2039,6 @@ module.exports = meta => {
             children: jsx(internals.MenuSliderControl, {
               ref: sliderRef,
               mini: true,
-              className: internals.sliderClass?.slider,
               disabled,
               initialValue: sliderValue,
               minValue,
