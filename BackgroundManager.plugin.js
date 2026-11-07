@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 2.0.7
+ * @version 2.0.8
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -61,37 +61,56 @@ module.exports = meta => {
   function init() {
     if (internals) return;
 
+    const classNameModules = Object.entries({
+      baseLayerClass: { firstId: 913420, filter: ["baseLayer", "bg"] },
+      markupClass: { firstId: 165648, filter: ["markup"] },
+      originalLinkClass: { firstId: 774702, filter: ["originalLink"] },
+      scrollbarClass: { firstId: 6095, filter: ["thin", "customTheme"] },
+      separatorClass: { firstId: 798819, filter: ["scroller", "label"] },
+      fontSizeClass: { firstId: 736541, filter: ["body-sm/semibold"] },
+    });
+
     internals = {
       ...Webpack.getBulkKeyed({
-        baseLayerClass: { firstId: 913420, filter: Filters.byKeys("baseLayer", "bg") },
-        layerContainerClass: { firstId: 38112, filter: Filters.byKeys("trapClicks") },
-        markupClass: { firstId: 165648, filter: Filters.byKeys("markup") },
-        originalLinkClass: { firstId: 774702, filter: Filters.byKeys("originalLink") },
-        scrollbarClass: { firstId: 465410, filter: Filters.byKeys("thin", "customTheme") },
-        separatorClass: { firstId: 798819, filter: Filters.byKeys("scroller", "label") },
+        ...classNameModules.reduce((p, [key, filter]) => {
+          Object.assign(p, { [key]: { ...filter, filter: Filters.byKeys(...filter.filter) } });
+          return p;
+        }, {}),
 
         FocusRing: { firstId: 559106, filter: Filters.byStrings("FocusRing was given a focusTarget"), searchExports: true },
         LazyCarousel: { firstId: 256905, filter: Filters.byStrings("startingIndex??"), searchExports: true },
         ManaButton: { firstId: 657718, filter: Filters.byStrings(".BUTTON_LOADING_STARTED_LABEL,"), searchExports: true },
-        MenuSliderControl: { firstId: 299163, filter: Filters.byStrings("moveGrabber"), searchExports: true },
-        Popout: { firstId: 922016, filter: Filters.byStrings("Unsupported animation config:"), searchExports: true },
+        MenuSliderControl: { firstId: 205513, filter: Filters.byStrings("moveGrabber"), searchExports: true },
+        Popout: { firstId: 265872, filter: Filters.byStrings("Unsupported animation config:"), searchExports: true },
         TextInput: { firstId: 103557, filter: Filters.byStrings('"data-mana-component":"text-area"'), searchExports: true },
         Tooltip: { firstId: 866665, filter: Filters.byStrings("tooltipId", "onExitComplete"), searchExports: true },
         TrailingPopout: { firstId: 189252, filter: Filters.bySource("HEADER_BAR_BADGE_BOTTOM", "??\"currentColor\",colorClass:") },
-        toCDN: { firstId: 803316, filter: Filters.byStrings(".searchParams.delete(\"width\"),"), searchExports: true },
         useFocusLock: { firstId: 315710, filter: Filters.byStrings("disableReturnRef:"), searchExports: true },
       })
     }
-    internals.TrailingPopout = Object.values(internals.TrailingPopout)[0];
+    internals.TrailingPopout && Object.assign(internals, { TrailingPopout: Object.values(internals.TrailingPopout)[0] });
+
+    classNameModules.filter(([key]) => internals[key] == null).forEach(([key, { firstId, filter }]) => {
+      const m = utils.getByClassName(...filter, { firstId });
+      if (!m) return;
+
+      Object.assign(internals, { [key]: utils.polyfillClasses(m) });
+    });
 
     controller = new AbortController();
-    Webpack.waitForModule(Filters.byKeys("defaultMarginlegend"), {
-      firstId: 920531, signal: controller?.signal,
-    }).then(m => { internals.textStylesClass = m });
+    Webpack.waitForModule(m => {
+      const exports = Object.values(m).filter(val => typeof val === "string");
+      return ["defaultMarginlegend"].every(cls => exports.some(val => val.startsWith(`${cls}_`) || val.startsWith(`${cls}-`)))
+    }, { firstId: 607226, signal: controller?.signal }).then(m => { internals.headingClass = utils.polyfillClasses(m) });
 
-    Webpack.waitForModule(Filters.byKeys("messagesPopout", "header"), {
-      firstId: 251066, signal: controller?.signal,
-    }).then(m => { internals.messagesPopoutClass = m });
+    Webpack.waitForModule(m => {
+      const exports = Object.values(m).filter(val => typeof val === "string");
+      return ["messagesPopout", "header"].every(cls => exports.some(val => val.startsWith(`${cls}_`) || val.startsWith(`${cls}-`)))
+    }, { firstId: 9570, signal: controller?.signal }).then(m => { internals.messagesPopoutClass = utils.polyfillClasses(m); });
+
+    Webpack.waitForModule(Filters.byStrings(".searchParams.delete(\"width\"),"), {
+      firstId: 803316, signal: controller?.signal, searchExports: true
+    }).then(m => { internals.toCDN = m })
 
     if (!internals.baseLayerClass) {
       throw new Error("Missing essential modules.");
@@ -125,7 +144,7 @@ module.exports = meta => {
       });
 
       // Patch bg
-      const [ThemeProvider, ThemeProviderKey] = Webpack.getWithKey(Filters.byStrings("disable-adaptive-theme"));
+      const [ThemeProvider, ThemeProviderKey] = Webpack.getWithKey(Filters.byStrings("disable-adaptive-theme"), { firstId: 43990 });
       ThemeProviderKey && Patcher.after(meta.slug, ThemeProvider, ThemeProviderKey, (_, __, ret) => {
         if (ret?.props?.children?.props.className?.includes(internals.baseLayerClass?.bg)) {
           ret.props.children.props.children = jsx(Components.ErrorBoundary, {
@@ -135,11 +154,11 @@ module.exports = meta => {
       });
 
       // Make blobs show in image modals and zoomThumbnails
-      const [srcSetter, srcSetterKey] = Webpack.getWithKey(Filters.byStrings("sourceWidth:", "sourceHeight:"));
+      const [srcSetter, srcSetterKey] = Webpack.getWithKey(Filters.byStrings("sourceWidth:", "sourceHeight:"), { firstId: 459830 });
       srcSetterKey && Patcher.after(meta.slug, srcSetter, srcSetterKey, (_, [props]) => {
         if (props?.src?.startsWith("blob:")) return props.src;
       });
-      const [thumbSetter, thumbSetterKey] = Webpack.getWithKey(Filters.byStrings("ImageLoaderUtils.getSrcWithWidthAndHeight"));
+      const [thumbSetter, thumbSetterKey] = Webpack.getWithKey(Filters.byStrings("ImageLoaderUtils.getSrcWithWidthAndHeight"), { firstId: 776231 });
       thumbSetterKey && Patcher.after(meta.slug, thumbSetter, thumbSetterKey, (_, [props]) => {
         if (props?.src?.startsWith("blob:")) return props.src;
       });
@@ -212,6 +231,42 @@ module.exports = meta => {
   }
 
   const utils = {
+    getByClassName() {
+      var options;
+      var cls = [...arguments];
+      let lastArg = cls[cls.length - 1];
+      if (typeof lastArg === "object" && !Array.isArray(lastArg)) {
+        cls.pop();
+        options = lastArg;
+      }
+
+      return BdApi.Webpack.getModule(m => {
+        const exports = Object.values(m).filter(val => typeof val === "string");
+        return cls.every(cls =>
+          exports.some(val => val.startsWith(`${cls}_`) || val.startsWith(`${cls}-`))
+        )
+      }, options);
+    },
+
+    /** @param {Record<string, string>} obj */
+    polyfillClasses(obj) {
+      const descriptors = Object.getOwnPropertyDescriptors(obj);
+      for (const descriptor of Object.values(descriptors)) {
+        descriptor.enumerable = false;
+      }
+      const mod = Object.defineProperties(Object.create(Object.getPrototypeOf(obj)), descriptors);
+
+      for (const value of Object.values(obj)) {
+        if (typeof value !== "string") continue;
+
+        const underscore = value.indexOf("_");
+        const dash = value.indexOf("-");
+        const polyfilled = value.substring(0, underscore > 0 ? underscore : dash > 0 ? dash : value.length);
+        Object.defineProperty(mod, polyfilled, { value, enumerable: true });
+      }
+      return mod;
+    },
+
     /**
      * @template Store
      * @param {Store} initialState
@@ -912,7 +967,7 @@ module.exports = meta => {
       return jsx("div", {
         className: internals.messagesPopoutClass?.header,
         children: jsx("h1", {
-          className: utils.clsx(internals.textStylesClass?.defaultColor, internals.textStylesClass?.['heading-md/medium']),
+          className: utils.clsx(internals.headingClass?.defaultColor, internals.fontSizeClass?.['heading-md/medium']),
           children: "Background Manager",
         })
       });
@@ -988,7 +1043,7 @@ module.exports = meta => {
             className: internals.separatorClass?.separator,
           }),
           !!items.length && jsx("div", {
-            className: utils.clsx("BGM-memory_info", internals.textStylesClass?.["text-sm/semibold"]),
+            className: utils.clsx("BGM-memory_info", internals.fontSizeClass?.["body-sm/semibold"]),
             children: [
               `Total size in memory: ${utils.formatNumber(items.reduce((p, c) => p + c.image.size, 0))}`,
               slideshow.enabled && items.length >= 2 && jsx(Components.IconButton, {
@@ -1153,7 +1208,7 @@ module.exports = meta => {
             className: utils.clsx(selected && "selected", "BGM-image_thumbnail"),
             children: [
               loading ? jsx(BdApi.Components.Spinner, { type: BdApi.Components.Spinner.Type.SPINNING_CIRCLE }) :
-                error ? jsx("div", { className: internals.textStylesClass?.defaultColor }, "Could not load image") :
+                error ? jsx("div", { className: internals.headingClass?.defaultColor }, "Could not load image") :
                   jsx("img", {
                     tabIndex: -1,
                     src: item.src,
@@ -1844,7 +1899,7 @@ module.exports = meta => {
       const positionOptions = useRef([{ label: "Start", value: "start" }, { label: "End", value: "end" }]);
 
       return jsx("div", {
-        className: utils.clsx("BGM-form_switch", internals.textStylesClass?.defaultColor),
+        className: utils.clsx("BGM-form_switch", internals.headingClass?.defaultColor),
         children: [
           jsx("div", null, label),
           jsx(BdApi.Components.DropdownInput, {
@@ -1856,7 +1911,7 @@ module.exports = meta => {
           }),
           jsx("span", {
             style: { color: "var(--text-muted, #94949c)", textWrap: "balance" },
-            className: utils.clsx(internals.textStylesClass?.["text-sm/normal"]),
+            className: utils.clsx(internals.fontSizeClass?.["body-sm/normal"]),
             children: note,
           }),
           jsx(BdApi.Components.DropdownInput, {
@@ -1873,13 +1928,13 @@ module.exports = meta => {
     /** @param {{label?: string, value: boolean, onChange?: (value: boolean) => void, disabled?: boolean, note?: string}} props */
     FormSwitch({ label, value, onChange, disabled, note }) {
       return jsx("div", {
-        className: utils.clsx("BGM-form_switch", internals.textStylesClass?.defaultColor),
+        className: utils.clsx("BGM-form_switch", internals.headingClass?.defaultColor),
         children: [
           jsx("div", null, label),
           jsx(BdApi.Components.SwitchInput, { value, onChange, disabled }),
           note && jsx("span", {
             style: { color: "var(--text-muted, #94949c)", textWrap: "balance" },
-            className: utils.clsx(internals.textStylesClass?.["text-sm/normal"]),
+            className: utils.clsx(internals.fontSizeClass?.["body-sm/normal"]),
             children: note,
           })
         ]
@@ -2000,7 +2055,7 @@ module.exports = meta => {
         ),
         children: [
           jsx("div", {
-            className: utils.clsx(internals.textStylesClass?.defaultColor, "BGM-input_row"),
+            className: utils.clsx(internals.headingClass?.defaultColor, "BGM-input_row"),
             onMouseEnter: () => inputRef.current?.focus?.(),
             onMouseLeave: () => inputRef.current?.blur?.(),
             children: [
@@ -2406,7 +2461,7 @@ module.exports = meta => {
       let pos = "end";
 
       function patchTitleBar() {
-        const [trailing, trailingKey] = Webpack.getWithKey(Filters.byStrings(".PlatformTypes.WINDOWS", "leading:"));
+        const [trailing, trailingKey] = Webpack.getWithKey(Filters.byStrings('"data-window-chrome":'), { firstId: 71855 });
         if (!trailing || !trailingKey) throw new Error("Cannot find title bar");
 
         cleanup?.();
@@ -2422,7 +2477,7 @@ module.exports = meta => {
       }
 
       function patchToolBar() {
-        const [toolbar, toolbarKey] = Webpack.getWithKey(Filters.byStrings("toolbarClassName", "section"));
+        const [toolbar, toolbarKey] = Webpack.getWithKey(Filters.byStrings("toolbarClassName", "section"), { firstId: 58736 });
         if (!toolbar || !toolbarKey) throw new Error("Cannot find tool bar");
 
         cleanup?.();
