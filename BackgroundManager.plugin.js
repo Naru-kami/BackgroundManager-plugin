@@ -2,7 +2,7 @@
  * @name BackgroundManager
  * @author Narukami
  * @description Enhances themes supporting background images with features (local folder, slideshow, transitions).
- * @version 2.0.8
+ * @version 2.0.9
  * @source https://github.com/Naru-kami/BackgroundManager-plugin
  */
 
@@ -250,9 +250,15 @@ module.exports = meta => {
 
     /** @param {Record<string, string>} obj */
     polyfillClasses(obj) {
+      if (Object.getOwnPropertySymbols(obj).some(s => s.description === "BetterDiscord.Polyfilled.class")) {
+        return obj;
+      }
+
       const descriptors = Object.getOwnPropertyDescriptors(obj);
       for (const descriptor of Object.values(descriptors)) {
         descriptor.enumerable = false;
+        descriptor.writable = true;
+        descriptor.configurable = true;
       }
       const mod = Object.defineProperties(Object.create(Object.getPrototypeOf(obj)), descriptors);
 
@@ -262,7 +268,7 @@ module.exports = meta => {
         const underscore = value.indexOf("_");
         const dash = value.indexOf("-");
         const polyfilled = value.substring(0, underscore > 0 ? underscore : dash > 0 ? dash : value.length);
-        Object.defineProperty(mod, polyfilled, { value, enumerable: true });
+        Object.defineProperty(mod, polyfilled, { value, writable: false, enumerable: true, configurable: false });
       }
       return mod;
     },
@@ -2138,8 +2144,10 @@ module.exports = meta => {
             }),
           },
           action: async () => {
-            const mediaURL = internals.toCDN(src, mime);
             try {
+              const mediaURL = internals.toCDN?.(src, mime);
+              if (!mediaURL) throw new Error("Wrong or missing URL converter");
+
               const response = await fetch(new Request(mediaURL, { method: "GET", mode: "cors" }));
               if (!response.ok) throw new Error(`${response.status}`);
               if (!response.headers.get('Content-Type')?.startsWith('image/')) throw new Error('Item is not an image.');
